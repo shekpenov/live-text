@@ -1,16 +1,30 @@
 const express = require('express');
+const compression = require('compression');
 const http = require('http');
 const path = require('path');
 const crypto = require('crypto');
 const { WebSocketServer } = require('ws');
 
 const PORT = process.env.PORT || 3000;
-const MAX_TEXT = 20000;       // максимум символов в ответе ученика
+const MAX_TEXT = 20000;       // максимум символов в коде/ответе ученика
+const MAX_OUT = 20000;        // максимум символов вывода программы
 const MAX_NAME = 40;
 const MAX_STUDENTS = 200;
 const ROOM_TTL_MS = 12 * 60 * 60 * 1000; // комната живёт 12 часов без активности
+const MODES = ['text', 'python'];
+const STATES = ['idle', 'running', 'input'];
 
 const app = express();
+app.use(compression());
+
+// Эти заголовки нужны, чтобы input() в Python работал как в терминале
+// (включают SharedArrayBuffer в браузере ученика).
+app.use((req, res, next) => {
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+  res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
+  next();
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 app.get('/teacher', (req, res) =>
   res.sendFile(path.join(__dirname, 'public', 'teacher.html'))
@@ -19,7 +33,7 @@ app.get('/teacher', (req, res) =>
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
 
-// rooms: code -> { code, teacherKey, locked, students: Map, teachers: Set<ws>, touched }
+// rooms: code -> { code, teacherKey, mode, locked, students: Map, teachers: Set<ws>, touched }
 const rooms = new Map();
 
 function newCode() {
@@ -39,7 +53,18 @@ function toTeachers(room, obj) {
 }
 
 function publicStudent(id, s) {
-  return { id, name: s.name, text: s.text, online: s.online, ts: s.ts };
+  return { id, name: s.name, text: s.text, output: s.output, state: s.state, online: s.online, ts: s.ts };
+}
+
+function teacherReady(room) {
+  return {
+    type: 'teacher_ready',
+    code: room.code,
+    key: room.teacherKey,
+    mode: room.mode,
+    locked: room.locked,
+    students: [...room.students].map(([id, s]) => publicStudent(id, s)),
+  };
 }
 
 wss.on('connection', (ws) => {
@@ -61,6 +86,7 @@ wss.on('connection', (ws) => {
       const room = {
         code: newCode(),
         teacherKey: crypto.randomBytes(12).toString('hex'),
+        mode: 'text',
         locked: false,
         students: new Map(),
         teachers: new Set(),
@@ -70,13 +96,7 @@ wss.on('connection', (ws) => {
       ws.role = 'teacher';
       ws.room = room;
       room.teachers.add(ws);
-      send(ws, {
-        type: 'teacher_ready',
-        code: room.code,
-        key: room.teacherKey,
-        locked: room.locked,
-        students: [],
-      });
+      send(ws, teacherReady(room));
       return;
     }
 
@@ -90,13 +110,7 @@ wss.on('connection', (ws) => {
       ws.room = room;
       room.teachers.add(ws);
       room.touched = Date.now();
-      send(ws, {
-        type: 'teacher_ready',
-        code: room.code,
-        key: room.teacherKey,
-        locked: room.locked,
-        students: [...room.students].map(([id, s]) => publicStudent(id, s)),
-      });
+      send(ws, teacherReady(room));
       return;
     }
 
@@ -109,11 +123,20 @@ wss.on('connection', (ws) => {
         for (const s of room.students.values()) {
           if (s.ws) send(s.ws, { type: 'lock', locked: room.locked });
         }
+      } else if (msg.type === 'set_mode') {
+        const mode = MODES.includes(msg.mode) ? msg.mode : 'text';
+        room.mode = mode;
+        toTeachers(room, { type: 'mode', mode });
+        for (const s of room.students.values()) {
+          if (s.ws) send(s.ws, { type: 'mode', mode });
+        }
       } else if (msg.type === 'clear_all') {
         for (const [id, s] of room.students) {
           s.text = '';
+          s.output = '';
+          s.state = 'idle';
           s.ts = Date.now();
-          if (s.ws) send(s.ws, { type: 'set_text', text: '' });
+          if (s.ws) send(s.ws, { type: 'set_text', text: '', clearOutput: true });
           toTeachers(room, { type: 'student', student: publicStudent(id, s) });
         }
       } else if (msg.type === 'kick') {
@@ -149,7 +172,7 @@ wss.on('connection', (ws) => {
           return;
         }
         id = crypto.randomBytes(8).toString('hex');
-        room.students.set(id, { name, text: '', online: true, ts: Date.now(), ws: null });
+        room.students.set(id, { name, text: '', output: '', state: 'idle', online: true, ts: Date.now(), ws: null });
       }
       const s = room.students.get(id);
       if (s.ws && s.ws !== ws) s.ws.close();
@@ -160,16 +183,25 @@ wss.on('connection', (ws) => {
       ws.room = room;
       ws.studentId = id;
       room.touched = Date.now();
-      send(ws, { type: 'student_ready', id, text: s.text, locked: room.locked });
+      send(ws, { type: 'student_ready', id, text: s.text, output: s.output, mode: room.mode, locked: room.locked });
       toTeachers(room, { type: 'student', student: publicStudent(id, s) });
       return;
     }
 
-    if (ws.role === 'student' && ws.room && msg.type === 'text') {
+    if (ws.role === 'student' && ws.room) {
       const room = ws.room;
       const s = room.students.get(ws.studentId);
-      if (!s || room.locked) return;
-      s.text = String(msg.text || '').slice(0, MAX_TEXT);
+      if (!s) return;
+
+      if (msg.type === 'text') {
+        if (room.locked) return;
+        s.text = String(msg.text || '').slice(0, MAX_TEXT);
+      } else if (msg.type === 'output') {
+        s.output = String(msg.output || '').slice(-MAX_OUT);
+        s.state = STATES.includes(msg.state) ? msg.state : 'idle';
+      } else {
+        return;
+      }
       s.ts = Date.now();
       room.touched = Date.now();
       toTeachers(room, { type: 'student', student: publicStudent(ws.studentId, s) });
