@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Панель учителя</title>
+<style>
+  :root { --bg:#f4f6fb; --card:#fff; --text:#1c2333; --muted:#6b7385; --accent:#3b6cf6; --danger:#d93b3b; --ok:#2fb36b; --warn:#e09a1a; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background:var(--bg); color:var(--text); }
+  header { position:sticky; top:0; z-index:5; background:#fff; box-shadow:0 1px 8px rgba(20,30,60,.1); padding:12px 18px; display:flex; flex-wrap:wrap; gap:14px; align-items:center; }
+  .code { font-size:30px; font-weight:800; letter-spacing:4px; color:var(--accent); }
+  .meta { font-size:13px; color:var(--muted); }
+  .spacer { flex:1; }
+  button { padding:9px 14px; font-size:14px; border:0; border-radius:9px; background:var(--accent); color:#fff; cursor:pointer; }
+  button.sec { background:#e8ecf6; color:var(--text); }
+  button.warn { background:var(--warn); }
+  button.danger { background:var(--danger); }
+  button:hover { filter:brightness(1.07); }
+  .size { display:flex; align-items:center; gap:6px; font-size:13px; color:var(--muted); }
+  main { padding:18px; }
+  .grid { display:grid; gap:14px; grid-template-columns: repeat(auto-fill, minmax(var(--w, 320px), 1fr)); }
+  .tile { background:var(--card); border-radius:12px; box-shadow:0 2px 10px rgba(20,30,60,.08); display:flex; flex-direction:column; min-height:180px; border:2px solid transparent; transition:border-color .3s; }
+  .tile.flash { border-color:var(--accent); }
+  .tile.offline { opacity:.6; }
+  .th { display:flex; align-items:center; gap:8px; padding:9px 12px; border-bottom:1px solid #eceff6; }
+  .dot { width:9px; height:9px; border-radius:50%; background:var(--ok); flex:none; }
+  .offline .dot { background:var(--warn); }
+  .nm { font-weight:600; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .cnt { font-size:12px; color:var(--muted); }
+  .x { background:none; color:var(--muted); padding:2px 6px; margin:0; font-size:16px; }
+  .x:hover { color:var(--danger); }
+  .tx { padding:10px 12px; white-space:pre-wrap; word-break:break-word; font-size:var(--fs, 15px); line-height:1.45; overflow:auto; max-height:var(--h, 320px); flex:1; }
+  .tx:empty::before { content:"—"; color:#b5bccb; }
+  .empty { text-align:center; color:var(--muted); padding:70px 10px; }
+  .empty b { color:var(--accent); font-size:20px; }
+  .start { max-width:420px; margin:12vh auto; text-align:center; background:#fff; padding:34px; border-radius:16px; box-shadow:0 2px 14px rgba(20,30,60,.1); }
+  .start button { width:100%; padding:14px; font-size:18px; margin-top:16px; }
+  .hidden { display:none !important; }
+</style>
+</head>
+<body>
+
+<div id="start" class="start">
+  <h2 style="margin-top:0">Панель учителя</h2>
+  <p style="color:#6b7385">Создайте комнату, раздайте ученикам код и адрес сайта.</p>
+  <button id="createBtn">Создать комнату</button>
+  <div id="startErr" style="color:#d93b3b;margin-top:12px;font-size:14px"></div>
+</div>
+
+<div id="app" class="hidden">
+  <header>
+    <div>
+      <div class="meta">Код комнаты</div>
+      <div class="code" id="code">----</div>
+    </div>
+    <div>
+      <div class="meta">Ученики заходят на</div>
+      <div id="url" style="font-weight:600"></div>
+    </div>
+    <div class="meta" id="count">Учеников: 0</div>
+    <div class="spacer"></div>
+    <div class="size">Размер текста
+      <button class="sec" id="fsMinus" style="padding:6px 10px">A−</button>
+      <button class="sec" id="fsPlus" style="padding:6px 10px">A+</button>
+    </div>
+    <div class="size">Плитки
+      <button class="sec" id="wMinus" style="padding:6px 10px">−</button>
+      <button class="sec" id="wPlus" style="padding:6px 10px">+</button>
+    </div>
+    <button id="lockBtn" class="warn">Заблокировать ввод</button>
+    <button id="dlBtn" class="sec">Скачать ответы</button>
+    <button id="clearBtn" class="sec">Очистить всё</button>
+    <button id="newBtn" class="sec">Новая комната</button>
+  </header>
+  <main>
+    <div id="grid" class="grid"></div>
+    <div id="empty" class="empty">Ждём учеников. Пусть зайдут на сайт и введут код <b id="code2"></b></div>
+  </main>
+</div>
+
+<script>
+(function () {
+  const $ = (id) => document.getElementById(id);
+  let ws = null;
+  let room = JSON.parse(localStorage.getItem('lt_teacher') || 'null'); // {code,key}
+  const students = new Map();
+  let locked = false;
+  let fs = 15, tileW = 320;
+  let intentionalClose = false;
+
+  $('url').textContent = location.host;
+
+  function wsUrl() { return (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host; }
+
+  function connect(create) {
+    ws = new WebSocket(wsUrl());
+    ws.onopen = () => {
+      if (create || !room) ws.send(JSON.stringify({ type: 'teacher_create' }));
+      else ws.send(JSON.stringify({ type: 'teacher_join', code: room.code, key: room.key }));
+    };
+    ws.onmessage = (e) => {
+      const m = JSON.parse(e.data);
+      if (m.type === 'teacher_ready') {
+        room = { code: m.code, key: m.key };
+        localStorage.setItem('lt_teacher', JSON.stringify(room));
+        locked = m.locked;
+        students.clear();
+        m.students.forEach((s) => students.set(s.id, s));
+        $('start').classList.add('hidden');
+        $('app').classList.remove('hidden');
+        $('code').textContent = m.code;
+        $('code2').textContent = m.code;
+        renderAll(); updateLock();
+      } else if (m.type === 'student') {
+        const isNew = !students.has(m.student.id);
+        const prev = students.get(m.student.id);
+        students.set(m.student.id, m.student);
+        if (isNew) renderAll();
+        else updateTile(m.student, !prev || prev.text !== m.student.text);
+        updateCount();
+      } else if (m.type === 'student_removed') {
+        students.delete(m.id); renderAll();
+      } else if (m.type === 'lock') {
+        locked = m.locked; updateLock();
+      } else if (m.type === 'error') {
+        // старая комната пропала (сервер перезапускался) — создаём новую
+        localStorage.removeItem('lt_teacher'); room = null;
+        intentionalClose = true; ws.close(); intentionalClose = false;
+        connect(true);
+      }
+    };
+    ws.onclose = () => { if (!intentionalClose) setTimeout(() => connect(false), 1500); };
+  }
+
+  function updateLock() {
+    $('lockBtn').textContent = locked ? 'Разблокировать ввод' : 'Заблокировать ввод';
+    $('lockBtn').className = locked ? 'danger' : 'warn';
+  }
+
+  function sortedStudents() {
+    return [...students.values()].sort((a, b) => a.name.localeCompare(b.name, 'ru'));
+  }
+
+  function updateCount() {
+    const all = students.size;
+    const on = [...students.values()].filter((s) => s.online).length;
+    $('count').textContent = 'Учеников: ' + all + ' (онлайн: ' + on + ')';
+    $('empty').classList.toggle('hidden', all > 0);
+  }
+
+  function tileEl(s) {
+    const t = document.createElement('div');
+    t.className = 'tile' + (s.online ? '' : ' offline');
+    t.dataset.id = s.id;
+    const h = document.createElement('div'); h.className = 'th';
+    const d = document.createElement('span'); d.className = 'dot';
+    const n = document.createElement('span'); n.className = 'nm'; n.textContent = s.name;
+    const c = document.createElement('span'); c.className = 'cnt'; c.textContent = s.text.length + ' симв.';
+    const x = document.createElement('button'); x.className = 'x'; x.textContent = '✕'; x.title = 'Удалить ученика';
+    x.onclick = () => { if (confirm('Удалить «' + s.name + '» из комнаты?')) ws.send(JSON.stringify({ type: 'kick', id: s.id })); };
+    h.append(d, n, c, x);
+    const b = document.createElement('div'); b.className = 'tx'; b.textContent = s.text;
+    t.append(h, b);
+    return t;
+  }
+
+  function renderAll() {
+    const g = $('grid'); g.innerHTML = '';
+    sortedStudents().forEach((s) => g.appendChild(tileEl(s)));
+    updateCount();
+  }
+
+  function updateTile(s, changed) {
+    const t = $('grid').querySelector('[data-id="' + s.id + '"]');
+    if (!t) { renderAll(); return; }
+    t.classList.toggle('offline', !s.online);
+    t.querySelector('.nm').textContent = s.name;
+    t.querySelector('.cnt').textContent = s.text.length + ' симв.';
+    const tx = t.querySelector('.tx');
+    const atBottom = tx.scrollTop + tx.clientHeight >= tx.scrollHeight - 30;
+    tx.textContent = s.text;
+    if (atBottom) tx.scrollTop = tx.scrollHeight;
+    if (changed) {
+      t.classList.add('flash');
+      clearTimeout(t._f);
+      t._f = setTimeout(() => t.classList.remove('flash'), 400);
+    }
+  }
+
+  $('createBtn').onclick = () => { connect(true); };
+  $('newBtn').onclick = () => {
+    if (!confirm('Создать новую комнату? Текущая останется на сервере, но вы потеряете к ней доступ.')) return;
+    localStorage.removeItem('lt_teacher'); room = null;
+    intentionalClose = true; ws.close(); intentionalClose = false;
+    connect(true);
+  };
+  $('lockBtn').onclick = () => ws.send(JSON.stringify({ type: 'set_lock', locked: !locked }));
+  $('clearBtn').onclick = () => { if (confirm('Очистить ответы всех учеников?')) ws.send(JSON.stringify({ type: 'clear_all' })); };
+
+  $('dlBtn').onclick = () => {
+    const parts = sortedStudents().map((s) => '===== ' + s.name + ' =====\n' + s.text + '\n');
+    const blob = new Blob([parts.join('\n')], { type: 'text/plain;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    const d = new Date();
+    a.download = 'otvety-' + room.code + '-' + d.toISOString().slice(0, 16).replace(/[:T]/g, '-') + '.txt';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
+
+  function applyView() {
+    document.documentElement.style.setProperty('--fs', fs + 'px');
+    document.documentElement.style.setProperty('--w', tileW + 'px');
+    document.documentElement.style.setProperty('--h', Math.round(tileW * 1.05) + 'px');
+  }
+  $('fsPlus').onclick = () => { fs = Math.min(32, fs + 2); applyView(); };
+  $('fsMinus').onclick = () => { fs = Math.max(11, fs - 2); applyView(); };
+  $('wPlus').onclick = () => { tileW = Math.min(900, tileW + 60); applyView(); };
+  $('wMinus').onclick = () => { tileW = Math.max(220, tileW - 60); applyView(); };
+  applyView();
+
+  setInterval(() => { if (ws && ws.readyState === 1) ws.send('{"type":"ping"}'); }, 25000);
+
+  // Автовозврат в свою комнату после обновления страницы
+  if (room) connect(false);
+})();
+</script>
+</body>
+</html>
