@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Панель учителя</title>
+<link rel="stylesheet" href="/vendor/codemirror/codemirror.css">
 <style>
   :root { --bg:#f4f6fb; --card:#fff; --text:#1c2333; --muted:#6b7385; --accent:#3b6cf6; --danger:#d93b3b; --ok:#2fb36b; --warn:#e09a1a; }
   * { box-sizing: border-box; }
@@ -47,6 +48,47 @@
   .start button { width:100%; padding:14px; font-size:18px; margin-top:16px; }
   .hidden { display:none !important; }
 
+  .tpv { display:block; width:100%; height:var(--h, 320px); border:0; background:#fff; border-radius:0 0 10px 10px; pointer-events:none; }
+  .mtabs { display:flex; gap:4px; }
+  .mtabs button { padding:6px 14px; font-size:13px; font-weight:600; border-radius:8px 8px 0 0; background:#e8ecf6; color:var(--text); }
+  .mtabs button.active { background:var(--accent); color:#fff; }
+  .mprev { flex:1; min-height:0; width:100%; border:1.5px solid #e0e5f1; border-radius:10px; background:#fff; }
+  .prow { display:flex; align-items:center; gap:10px; }
+  .prow .grow { flex:1; }
+  .note { font-size:12px; color:var(--warn); }
+
+  /* режим HTML: список учеников, код во вкладках, страница */
+  .hview { display:grid; grid-template-columns:210px 1fr; gap:14px; height:max(480px, calc(100vh - 150px)); }
+  .slist { background:var(--card); border-radius:12px; box-shadow:0 2px 10px rgba(20,30,60,.08); overflow:auto; padding:6px; }
+  .sitem { display:flex; align-items:center; gap:8px; padding:9px 10px; border-radius:8px; cursor:pointer; transition:background .3s; }
+  .sitem:hover { background:#f1f4fb; }
+  .sitem.active { background:#e4ecff; font-weight:600; }
+  .sitem.flash { background:#fff4cf; }
+  .sitem.offline { opacity:.6; }
+  .sitem .nm { cursor:inherit; font-weight:inherit; }
+  .hmain { display:grid; grid-template-columns:1fr 1fr; gap:12px; min-height:0; min-width:0; }
+  .hcol { display:flex; flex-direction:column; min-height:0; min-width:0; }
+  .hhead { min-height:32px; margin-bottom:4px; }
+  .hhead b { font-size:17px; }
+  .chk { font-size:12px; color:var(--muted); display:flex; align-items:center; gap:5px; cursor:pointer; }
+  .hcode { flex:1; min-height:0; border:1.5px solid #e0e5f1; border-radius:0 10px 10px 10px; overflow:hidden; background:#fff; }
+  .hcode .CodeMirror { height:100%; font-size:var(--fs, 15px); font-family: ui-monospace, "Cascadia Code", Consolas, monospace; }
+  .hcode .chg { background:#ffec99; border-radius:2px; }
+  .mtabs button.pulse::after { content:""; display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--warn); margin-left:6px; }
+  .hprev { flex:1; min-height:0; width:100%; border:1.5px solid #e0e5f1; border-radius:10px; background:#fff; }
+  .hcon { margin-top:6px; background:#12161f; color:#e6e9f2; border-radius:10px; max-height:28%; min-height:60px; display:flex; flex-direction:column; }
+  .hconh { display:flex; justify-content:space-between; align-items:center; padding:4px 10px; font-size:11px; color:#8b94ab; text-transform:uppercase; letter-spacing:.06em; }
+  .hconh button { background:#232a3b; color:#c7cde0; padding:2px 8px; font-size:11px; border-radius:6px; }
+  #hConOut { overflow:auto; padding:0 10px 8px; font:13px/1.45 ui-monospace, "Cascadia Code", Consolas, monospace; white-space:pre-wrap; word-break:break-word; }
+  #hConOut .error { color:#ff8a8a; }
+  #hConOut .warn { color:#ffd479; }
+  @media (max-width: 900px) {
+    .hview { grid-template-columns:1fr; grid-template-rows:auto auto; height:auto; }
+    .slist { display:flex; overflow-x:auto; }
+    .sitem { flex:none; }
+    .hmain { grid-template-columns:1fr; grid-template-rows:60vh 60vh; }
+  }
+
   /* окно просмотра одного ученика */
   .modal { position:fixed; inset:0; background:rgba(15,20,35,.55); z-index:20; display:flex; align-items:center; justify-content:center; padding:18px; }
   .mbox { background:#fff; border-radius:14px; width:min(1200px, 100%); height:min(86vh, 900px); display:flex; flex-direction:column; overflow:hidden; }
@@ -87,6 +129,7 @@
       <select id="modeSel">
         <option value="text">Текст</option>
         <option value="python">Python</option>
+        <option value="html">HTML / CSS / JS</option>
       </select>
     </div>
     <div class="spacer"></div>
@@ -94,7 +137,7 @@
       <button class="sec" id="fsMinus" style="padding:6px 10px">A−</button>
       <button class="sec" id="fsPlus" style="padding:6px 10px">A+</button>
     </div>
-    <div class="size">Плитки
+    <div class="size" id="tileCtl">Плитки
       <button class="sec" id="wMinus" style="padding:6px 10px">−</button>
       <button class="sec" id="wPlus" style="padding:6px 10px">+</button>
     </div>
@@ -105,6 +148,26 @@
   </header>
   <main>
     <div id="grid" class="grid"></div>
+    <div id="hview" class="hview hidden">
+      <div class="slist" id="slist"></div>
+      <div class="hmain">
+        <div class="hcol">
+          <div class="hhead prow"><b id="hName"></b><span class="grow"></span>
+            <label class="chk"><input type="checkbox" id="hFollow" checked> следить за вводом</label></div>
+          <div class="mtabs" id="hTabs">
+            <button data-t="html" class="active">HTML</button><button data-t="css">CSS</button><button data-t="js">JS</button>
+          </div>
+          <div id="hCode" class="hcode"></div>
+        </div>
+        <div class="hcol">
+          <div class="hhead prow"><span class="mt" style="margin:0">Страница ученика</span><span class="grow"></span>
+            <label class="chk"><input type="checkbox" id="hRunJs" checked> выполнять JS</label>
+            <button class="sec" id="hRefresh" style="padding:4px 10px;font-size:12px" title="Обновить страницу">↻</button></div>
+          <iframe id="hPrev" class="hprev" sandbox="allow-scripts" title="Страница ученика"></iframe>
+          <div id="hConBox" class="hcon hidden"><div class="hconh"><span>Консоль ученика</span><button id="hConClr">очистить</button></div><div id="hConOut"></div></div>
+        </div>
+      </div>
+    </div>
     <div id="empty" class="empty">Ждём учеников. Пусть зайдут на сайт и введут код <b id="code2"></b></div>
   </main>
 </div>
@@ -117,12 +180,28 @@
       <button class="sec" id="mClose">Закрыть (Esc)</button>
     </div>
     <div class="mbody" id="mBody">
-      <div class="mcol"><div class="mt" id="mCodeT">Ответ</div><pre class="mcode" id="mCode"></pre></div>
+      <div class="mcol">
+        <div class="mt" id="mCodeT">Ответ</div>
+        <div class="mtabs hidden" id="mTabs">
+          <button data-t="html" class="active">HTML</button><button data-t="css">CSS</button><button data-t="js">JS</button>
+        </div>
+        <pre class="mcode" id="mCode"></pre>
+      </div>
       <div class="mcol" id="mTermCol"><div class="mt">Вывод программы</div><pre class="mterm" id="mTerm"></pre></div>
+      <div class="mcol hidden" id="mPrevCol">
+        <div class="mt prow"><span>Страница</span><span class="grow"></span><span class="note hidden" id="mNote">снимок с JS</span><button class="sec" id="mJsBtn" style="padding:4px 10px;font-size:12px">▶ Запустить JS</button></div>
+        <iframe id="mPrev" class="mprev" sandbox="" title="Страница ученика"></iframe>
+      </div>
     </div>
   </div>
 </div>
 
+<script src="/vendor/codemirror/codemirror.js"></script>
+<script src="/vendor/codemirror/xml.js"></script>
+<script src="/vendor/codemirror/javascript.js"></script>
+<script src="/vendor/codemirror/css.js"></script>
+<script src="/vendor/codemirror/htmlmixed.js"></script>
+<script src="/preview.js"></script>
 <script>
 (function () {
   const $ = (id) => document.getElementById(id);
@@ -165,9 +244,16 @@
         const isNew = !students.has(m.student.id);
         const prev = students.get(m.student.id);
         students.set(m.student.id, m.student);
-        if (isNew) renderAll();
-        else updateTile(m.student, !prev || prev.text !== m.student.text || prev.output !== m.student.output);
-        if (focusId === m.student.id) fillModal();
+        if (mode === 'html') {
+          const changed = !prev || JSON.stringify(prev.files) !== JSON.stringify(m.student.files);
+          if (isNew) { renderList(); ensureSel(); }
+          else updateListItem(m.student, changed);
+          if (m.student.id === selId) updateHView(m.student);
+        } else {
+          if (isNew) renderAll();
+          else updateTile(m.student, !prev || prev.text !== m.student.text || prev.output !== m.student.output);
+          if (focusId === m.student.id) fillModal();
+        }
         updateCount();
       } else if (m.type === 'student_removed') {
         students.delete(m.id);
@@ -178,7 +264,7 @@
       } else if (m.type === 'mode') {
         mode = m.mode;
         $('modeSel').value = mode;
-        if (mode === 'python' && tileW < 420) tileW = 420;
+        if (mode !== 'text' && tileW < 420) tileW = 420;
         applyView();
         renderAll();
         if (focusId) fillModal();
@@ -197,6 +283,11 @@
     $('lockBtn').className = locked ? 'danger' : 'warn';
   }
 
+  function filesLen(s) {
+    const f = s.files || {};
+    return (f.html || '').length + (f.css || '').length + (f.js || '').length;
+  }
+
   function sortedStudents() {
     return [...students.values()].sort((a, b) => a.name.localeCompare(b.name, 'ru'));
   }
@@ -206,6 +297,7 @@
     const on = [...students.values()].filter((s) => s.online).length;
     $('count').textContent = 'Учеников: ' + all + ' (онлайн: ' + on + ')';
     $('empty').classList.toggle('hidden', all > 0);
+    layout();
   }
 
   function badgeInfo(s) {
@@ -228,6 +320,12 @@
     const x = document.createElement('button'); x.className = 'x'; x.textContent = '✕'; x.title = 'Удалить ученика';
     x.onclick = () => { if (confirm('Удалить «' + s.name + '» из комнаты?')) ws.send(JSON.stringify({ type: 'kick', id: s.id })); };
     h.append(d, n, b, c, x);
+    if (mode === 'html') {
+      const pv = document.createElement('iframe'); pv.className = 'tpv'; pv.setAttribute('sandbox', ''); pv.title = s.name;
+      t.append(h, pv);
+      fillTile(t, s);
+      return t;
+    }
     const body = document.createElement('div'); body.className = 'tx' + (mode === 'python' ? ' mono' : '');
     t.append(h, body);
     if (mode === 'python') {
@@ -241,11 +339,24 @@
   function fillTile(t, s) {
     t.classList.toggle('offline', !s.online);
     t.querySelector('.nm').textContent = s.name;
-    t.querySelector('.cnt').textContent = s.text.length + ' симв.';
+    t.querySelector('.cnt').textContent = (mode === 'html' ? filesLen(s) : s.text.length) + ' симв.';
     const b = t.querySelector('.badge');
     const bi = badgeInfo(s);
     b.classList.toggle('hidden', !bi);
     if (bi) { b.textContent = bi.text; b.className = 'badge ' + bi.cls; }
+    const pv = t.querySelector('.tpv');
+    if (pv) {
+      // превью без JS (безопасно: зависший скрипт ученика не повесит панель учителя)
+      const f = s.files || {};
+      const key = (f.html || '') + '\u0000' + (f.css || '');
+      if (pv._key !== key) {
+        const first = pv._key === undefined;
+        pv._key = key;
+        clearTimeout(pv._t);
+        pv._t = setTimeout(() => { pv.srcdoc = LTPreview.buildDoc(f, { scripts: false }); }, first ? 0 : 700);
+      }
+      return;
+    }
     setScrollText(t.querySelector('.tx'), s.text);
     const tm = t.querySelector('.tm');
     if (tm) setScrollText(tm, s.output || '');
@@ -260,6 +371,10 @@
 
   function renderAll() {
     const g = $('grid'); g.innerHTML = '';
+    if (mode === 'html') {
+      renderList(); ensureSel(); updateCount();
+      return;
+    }
     sortedStudents().forEach((s) => g.appendChild(tileEl(s)));
     updateCount();
   }
@@ -275,9 +390,211 @@
     }
   }
 
+  // ---------- режим HTML: один ученик крупно ----------
+  let selId = null;
+  let hcm = null, hdocs = null, hTab = 'html';
+  let hKey = null, hTimer = null;
+  const tabTimers = {};
+  let runJs = true;
+  try { runJs = localStorage.getItem('lt_runjs') !== '0'; } catch (e) { /* без хранилища */ }
+  $('hRunJs').checked = runJs;
+
+  function layout() {
+    const html = mode === 'html';
+    $('grid').classList.toggle('hidden', html);
+    $('hview').classList.toggle('hidden', !html || students.size === 0);
+    $('tileCtl').classList.toggle('hidden', html);
+  }
+
+  function initHView() {
+    if (hcm) return;
+    hdocs = {
+      html: CodeMirror.Doc('', 'htmlmixed'),
+      css: CodeMirror.Doc('', 'css'),
+      js: CodeMirror.Doc('', 'javascript')
+    };
+    hcm = CodeMirror($('hCode'), { value: hdocs.html, lineNumbers: true, readOnly: true, lineWrapping: true, tabSize: 2 });
+  }
+
+  function renderList() {
+    const list = $('slist'); list.innerHTML = '';
+    sortedStudents().forEach((s) => {
+      const el = document.createElement('div');
+      el.className = 'sitem' + (s.online ? '' : ' offline') + (s.id === selId ? ' active' : '');
+      el.dataset.id = s.id;
+      const d = document.createElement('span'); d.className = 'dot';
+      const n = document.createElement('span'); n.className = 'nm'; n.textContent = s.name;
+      const c = document.createElement('span'); c.className = 'cnt'; c.textContent = filesLen(s);
+      const x = document.createElement('button'); x.className = 'x'; x.textContent = '✕'; x.title = 'Удалить ученика';
+      x.onclick = (e) => { e.stopPropagation(); if (confirm('Удалить «' + s.name + '» из комнаты?')) ws.send(JSON.stringify({ type: 'kick', id: s.id })); };
+      el.onclick = () => selectStudent(s.id);
+      el.append(d, n, c, x);
+      list.appendChild(el);
+    });
+  }
+
+  function updateListItem(s, changed) {
+    const el = $('slist').querySelector('[data-id="' + s.id + '"]');
+    if (!el) { renderList(); return; }
+    el.classList.toggle('offline', !s.online);
+    el.querySelector('.nm').textContent = s.name;
+    el.querySelector('.cnt').textContent = filesLen(s);
+    if (changed && s.id !== selId) {
+      el.classList.add('flash');
+      clearTimeout(el._f);
+      el._f = setTimeout(() => el.classList.remove('flash'), 600);
+    }
+  }
+
+  function ensureSel() {
+    if (mode !== 'html') return;
+    if (selId && !students.has(selId)) selId = null;
+    if (!selId && students.size) selectStudent(sortedStudents()[0].id);
+    else if (!students.size) layout();
+  }
+
+  function selectStudent(id) {
+    const s = students.get(id);
+    if (!s) return;
+    selId = id; hKey = null;
+    layout(); initHView();
+    document.querySelectorAll('#slist .sitem').forEach((el) => el.classList.toggle('active', el.dataset.id === id));
+    $('hName').textContent = s.name + (s.online ? '' : ' (не в сети)');
+    const f = s.files || {};
+    ['html', 'css', 'js'].forEach((k) => { hdocs[k].setValue(f[k] || ''); hdocs[k].clearHistory(); });
+    document.querySelectorAll('#hTabs button').forEach((b) => b.classList.remove('pulse'));
+    setHTab(hTab);
+    setTimeout(() => hcm.refresh(), 0);
+    renderHPage(true);
+  }
+
+  function setHTab(k) {
+    hTab = k;
+    document.querySelectorAll('#hTabs button').forEach((b) => b.classList.toggle('active', b.dataset.t === k));
+    hcm.swapDoc(hdocs[k]);
+    hcm.refresh();
+  }
+
+  document.querySelectorAll('#hTabs button').forEach((b) => b.addEventListener('click', () => {
+    if (!hcm) return;
+    $('hFollow').checked = false; // ручной выбор вкладки отключает слежение
+    b.classList.remove('pulse');
+    setHTab(b.dataset.t);
+  }));
+
+  // Вносит в документ только изменившийся кусок (прокрутка не прыгает) и подсвечивает его
+  function applyDiff(doc, nv) {
+    const old = doc.getValue();
+    if (old === nv) return null;
+    const max = Math.min(old.length, nv.length);
+    let a = 0;
+    while (a < max && old.charCodeAt(a) === nv.charCodeAt(a)) a++;
+    let b = 0;
+    while (b < max - a && old.charCodeAt(old.length - 1 - b) === nv.charCodeAt(nv.length - 1 - b)) b++;
+    const mid = nv.slice(a, nv.length - b);
+    doc.replaceRange(mid, doc.posFromIndex(a), doc.posFromIndex(old.length - b));
+    const from = doc.posFromIndex(a), to = doc.posFromIndex(a + mid.length);
+    if (mid.length && mid.length < 400) {
+      const mk = doc.markText(from, to, { className: 'chg' });
+      setTimeout(() => mk.clear(), 1500);
+    }
+    return { from, to };
+  }
+
+  function pulseTab(k) {
+    const b = document.querySelector('#hTabs button[data-t="' + k + '"]');
+    if (!b || k === hTab) return;
+    b.classList.add('pulse');
+    clearTimeout(tabTimers[k]);
+    tabTimers[k] = setTimeout(() => b.classList.remove('pulse'), 3000);
+  }
+
+  function updateHView(s) {
+    if (!hcm) return;
+    $('hName').textContent = s.name + (s.online ? '' : ' (не в сети)');
+    const f = s.files || {};
+    ['html', 'css', 'js'].forEach((k) => {
+      const r = applyDiff(hdocs[k], f[k] || '');
+      if (!r) return;
+      pulseTab(k);
+      if ($('hFollow').checked) {
+        if (hTab !== k) setHTab(k);
+        hcm.scrollIntoView(r.to, 80);
+      }
+    });
+    renderHPage(false);
+  }
+
+  function renderHPage(now) {
+    const s = students.get(selId);
+    if (!s) return;
+    const f = s.files || {};
+    const key = JSON.stringify([f.html || '', f.css || '', runJs ? (f.js || '') : '', runJs]);
+    if (!now && key === hKey) return;
+    hKey = key;
+    clearTimeout(hTimer);
+    hTimer = setTimeout(() => {
+      $('hConOut').textContent = '';
+      $('hConBox').classList.add('hidden');
+      // allow-scripts без allow-same-origin и без allow-modals: страница ученика
+      // не получает доступа к панели учителя и не может открывать окна alert/prompt
+      $('hPrev').setAttribute('sandbox', runJs ? 'allow-scripts' : '');
+      $('hPrev').srcdoc = LTPreview.buildDoc(f, { scripts: runJs, console: runJs });
+    }, now ? 0 : 700);
+  }
+
+  $('hRunJs').addEventListener('change', () => {
+    runJs = $('hRunJs').checked;
+    try { localStorage.setItem('lt_runjs', runJs ? '1' : '0'); } catch (e) { /* без хранилища */ }
+    hKey = null; renderHPage(true);
+  });
+  $('hRefresh').addEventListener('click', () => { hKey = null; renderHPage(true); });
+  $('hConClr').addEventListener('click', () => { $('hConOut').textContent = ''; $('hConBox').classList.add('hidden'); });
+  window.addEventListener('message', (e) => {
+    if (e.source !== $('hPrev').contentWindow) return;
+    const d = e.data;
+    if (!d || !d.lt) return;
+    const line = document.createElement('div');
+    line.className = d.t === 'error' ? 'error' : (d.t === 'warn' ? 'warn' : '');
+    line.textContent = String(d.m).slice(0, 2000);
+    const out = $('hConOut');
+    out.appendChild(line);
+    while (out.childNodes.length > 200) out.removeChild(out.firstChild);
+    $('hConBox').classList.remove('hidden');
+    out.scrollTop = out.scrollHeight;
+  });
+
   // ---------- окно просмотра одного ученика ----------
-  function openModal(id) { focusId = id; $('modal').classList.remove('hidden'); fillModal(); }
-  function closeModal() { focusId = null; $('modal').classList.add('hidden'); }
+  let mTab = 'html';
+  let mJs = false;      // показывать ли страницу ученика с JS (только по кнопке, снимком)
+  let mKey = null;
+  let mTimer = null;
+
+  function openModal(id) {
+    focusId = id; mTab = 'html'; mJs = false; mKey = null;
+    $('modal').classList.remove('hidden');
+    fillModal();
+  }
+  function closeModal() {
+    focusId = null; mJs = false; mKey = null;
+    $('modal').classList.add('hidden');
+    $('mPrev').srcdoc = '';
+  }
+
+  function renderModalPreview(s) {
+    const f = s.files || {};
+    if (mJs) return; // снимок с JS не обновляем автоматически
+    const key = (f.html || '') + '\u0000' + (f.css || '');
+    if (mKey === key) return;
+    const first = mKey === null;
+    mKey = key;
+    clearTimeout(mTimer);
+    mTimer = setTimeout(() => {
+      $('mPrev').setAttribute('sandbox', '');
+      $('mPrev').srcdoc = LTPreview.buildDoc(f, { scripts: false });
+    }, first ? 0 : 500);
+  }
+
   function fillModal() {
     const s = students.get(focusId);
     if (!s) { closeModal(); return; }
@@ -286,13 +603,40 @@
     $('mBadge').classList.toggle('hidden', !bi);
     if (bi) { $('mBadge').textContent = bi.text; $('mBadge').className = 'badge ' + bi.cls; }
     const py = mode === 'python';
+    const ht = mode === 'html';
     $('mTermCol').classList.toggle('hidden', !py);
-    $('mBody').classList.toggle('single', !py);
-    $('mCodeT').textContent = py ? 'Код' : 'Ответ';
-    $('mCode').style.fontFamily = py ? '' : 'inherit';
-    setScrollText($('mCode'), s.text);
-    setScrollText($('mTerm'), s.output || '');
+    $('mPrevCol').classList.toggle('hidden', !ht);
+    $('mTabs').classList.toggle('hidden', !ht);
+    $('mBody').classList.toggle('single', mode === 'text');
+    $('mCodeT').textContent = py ? 'Код' : (ht ? 'Код ученика' : 'Ответ');
+    $('mCode').style.fontFamily = (py || ht) ? '' : 'inherit';
+    if (ht) {
+      document.querySelectorAll('#mTabs button').forEach((b) => b.classList.toggle('active', b.dataset.t === mTab));
+      setScrollText($('mCode'), (s.files || {})[mTab] || '');
+      renderModalPreview(s);
+    } else {
+      setScrollText($('mCode'), s.text);
+      setScrollText($('mTerm'), s.output || '');
+    }
   }
+
+  document.querySelectorAll('#mTabs button').forEach((b) => b.addEventListener('click', () => { mTab = b.dataset.t; fillModal(); }));
+  $('mJsBtn').onclick = () => {
+    const s = students.get(focusId);
+    if (!s) return;
+    mJs = !mJs;
+    $('mJsBtn').textContent = mJs ? '■ Без JS (живое обновление)' : '▶ Запустить JS';
+    $('mNote').classList.toggle('hidden', !mJs);
+    clearTimeout(mTimer);
+    if (mJs) {
+      // allow-scripts без allow-same-origin: страница ученика не получит доступ к панели учителя
+      $('mPrev').setAttribute('sandbox', 'allow-scripts allow-modals');
+      $('mPrev').srcdoc = LTPreview.buildDoc(s.files || {}, { scripts: true, console: false });
+    } else {
+      mKey = null;
+      renderModalPreview(s);
+    }
+  };
   $('mClose').onclick = closeModal;
   $('modal').addEventListener('click', (e) => { if (e.target === $('modal')) closeModal(); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
@@ -303,7 +647,7 @@
     if (!confirm('Создать новую комнату? Текущая останется на сервере, но вы потеряете к ней доступ.')) return;
     localStorage.removeItem('lt_teacher'); room = null;
     intentionalClose = true; ws.close(); intentionalClose = false;
-    students.clear(); closeModal(); renderAll();
+    students.clear(); selId = null; closeModal(); renderAll();
     connect(true);
   };
   $('modeSel').onchange = () => ws.send(JSON.stringify({ type: 'set_mode', mode: $('modeSel').value }));
@@ -314,6 +658,7 @@
     const parts = sortedStudents().map((s) => {
       let t = '===== ' + s.name + ' =====\n';
       if (mode === 'python') t += '--- Код ---\n' + s.text + '\n--- Вывод ---\n' + (s.output || '') + '\n';
+      else if (mode === 'html') { const f = s.files || {}; t += '--- HTML ---\n' + (f.html || '') + '\n--- CSS ---\n' + (f.css || '') + '\n--- JS ---\n' + (f.js || '') + '\n'; }
       else t += s.text + '\n';
       return t;
     });
@@ -330,6 +675,7 @@
     document.documentElement.style.setProperty('--fs', fs + 'px');
     document.documentElement.style.setProperty('--w', tileW + 'px');
     document.documentElement.style.setProperty('--h', Math.round(tileW * 0.9) + 'px');
+    if (hcm) hcm.refresh();
   }
   $('fsPlus').onclick = () => { fs = Math.min(32, fs + 2); applyView(); };
   $('fsMinus').onclick = () => { fs = Math.max(11, fs - 2); applyView(); };

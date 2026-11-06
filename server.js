@@ -11,8 +11,10 @@ const MAX_OUT = 20000;        // максимум символов вывода 
 const MAX_NAME = 40;
 const MAX_STUDENTS = 200;
 const ROOM_TTL_MS = 12 * 60 * 60 * 1000; // комната живёт 12 часов без активности
-const MODES = ['text', 'python'];
+const MAX_FILE = 30000;       // максимум символов в одной вкладке HTML/CSS/JS
+const MODES = ['text', 'python', 'html'];
 const STATES = ['idle', 'running', 'input'];
+const emptyFiles = () => ({ html: '', css: '', js: '' });
 
 const app = express();
 app.use(compression());
@@ -53,7 +55,7 @@ function toTeachers(room, obj) {
 }
 
 function publicStudent(id, s) {
-  return { id, name: s.name, text: s.text, output: s.output, state: s.state, online: s.online, ts: s.ts };
+  return { id, name: s.name, text: s.text, files: s.files, output: s.output, state: s.state, online: s.online, ts: s.ts };
 }
 
 function teacherReady(room) {
@@ -133,10 +135,11 @@ wss.on('connection', (ws) => {
       } else if (msg.type === 'clear_all') {
         for (const [id, s] of room.students) {
           s.text = '';
+          s.files = emptyFiles();
           s.output = '';
           s.state = 'idle';
           s.ts = Date.now();
-          if (s.ws) send(s.ws, { type: 'set_text', text: '', clearOutput: true });
+          if (s.ws) send(s.ws, { type: 'set_text', text: '', files: emptyFiles(), clearOutput: true });
           toTeachers(room, { type: 'student', student: publicStudent(id, s) });
         }
       } else if (msg.type === 'kick') {
@@ -172,7 +175,7 @@ wss.on('connection', (ws) => {
           return;
         }
         id = crypto.randomBytes(8).toString('hex');
-        room.students.set(id, { name, text: '', output: '', state: 'idle', online: true, ts: Date.now(), ws: null });
+        room.students.set(id, { name, text: '', files: emptyFiles(), output: '', state: 'idle', online: true, ts: Date.now(), ws: null });
       }
       const s = room.students.get(id);
       if (s.ws && s.ws !== ws) s.ws.close();
@@ -183,7 +186,7 @@ wss.on('connection', (ws) => {
       ws.room = room;
       ws.studentId = id;
       room.touched = Date.now();
-      send(ws, { type: 'student_ready', id, text: s.text, output: s.output, mode: room.mode, locked: room.locked });
+      send(ws, { type: 'student_ready', id, text: s.text, files: s.files, output: s.output, mode: room.mode, locked: room.locked });
       toTeachers(room, { type: 'student', student: publicStudent(id, s) });
       return;
     }
@@ -196,6 +199,14 @@ wss.on('connection', (ws) => {
       if (msg.type === 'text') {
         if (room.locked) return;
         s.text = String(msg.text || '').slice(0, MAX_TEXT);
+      } else if (msg.type === 'files') {
+        if (room.locked) return;
+        const f = msg.files || {};
+        s.files = {
+          html: String(f.html || '').slice(0, MAX_FILE),
+          css: String(f.css || '').slice(0, MAX_FILE),
+          js: String(f.js || '').slice(0, MAX_FILE),
+        };
       } else if (msg.type === 'output') {
         s.output = String(msg.output || '').slice(-MAX_OUT);
         s.state = STATES.includes(msg.state) ? msg.state : 'idle';

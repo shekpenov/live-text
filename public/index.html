@@ -47,8 +47,31 @@
   .term .dim { color:#7f8aa3; }
   .term .usr { color:#9fe3a1; }
   #termIn { background:transparent; border:0; outline:0; color:#9fe3a1; font:inherit; width:70%; min-width:60px; padding:0; caret-color:#fff; }
+  .pane { min-width:0; }
+
+  /* Режим HTML / CSS / JS */
+  .tabs { display:flex; gap:4px; margin-bottom:0; }
+  .tab { padding:8px 16px; font-size:14px; font-weight:600; border:0; border-radius:9px 9px 0 0; background:#e8ecf6; color:var(--text); cursor:pointer; }
+  .tab.active { background:var(--accent); color:#fff; }
+  .edhost { flex:1; min-height:0; border:1.5px solid #d5dae6; border-radius:0 10px 10px 10px; overflow:hidden; }
+  .edhost .CodeMirror { height:100%; font-size:15px; font-family: ui-monospace, "Cascadia Code", Consolas, monospace; }
+  .prow { display:flex; align-items:center; gap:10px; min-height:34px; }
+  .prow .grow { flex:1; }
+  .prow label { margin:0; display:flex; align-items:center; gap:5px; font-size:12px; text-transform:none; letter-spacing:0; color:var(--muted); }
+  .mini { padding:5px 11px; font-size:12px; border:0; border-radius:7px; background:#e8ecf6; color:var(--text); cursor:pointer; }
+  .preview { flex:1; min-height:0; width:100%; background:#fff; border:1.5px solid #d5dae6; border-radius:10px; }
+  .con { margin-top:6px; background:#12161f; color:#e6e9f2; border-radius:10px; max-height:30%; display:flex; flex-direction:column; min-height:60px; }
+  .conh { display:flex; justify-content:space-between; align-items:center; padding:4px 10px; font-size:11px; color:#8b94ab; text-transform:uppercase; letter-spacing:.06em; }
+  .conh .mini { background:#232a3b; color:#c7cde0; padding:2px 8px; }
+  #conOut { overflow:auto; padding:0 10px 8px; font:13px/1.45 ui-monospace, "Cascadia Code", Consolas, monospace; white-space:pre-wrap; word-break:break-word; }
+  #conOut .error { color:#ff8a8a; }
+  #conOut .warn { color:#ffd479; }
+
   @media (max-width: 800px) {
-    .split { grid-template-columns:1fr; grid-template-rows:1fr 1fr; height:82vh; }
+    /* телефон: окна одно под другим */
+    .split { grid-template-columns:1fr; grid-template-rows:1fr 1fr; height:82vh; height:82dvh; }
+    .wrap { padding:8px; }
+    .card { padding:12px; }
   }
 </style>
 </head>
@@ -96,6 +119,32 @@
         </div>
       </div>
     </div>
+
+    <!-- Режим «HTML» -->
+    <div id="htmlPane" class="hidden">
+      <div class="split">
+        <div class="pane">
+          <div class="tabs">
+            <button class="tab active" data-tab="html">HTML</button>
+            <button class="tab" data-tab="css">CSS</button>
+            <button class="tab" data-tab="js">JS</button>
+          </div>
+          <div id="htmlEditorHost" class="edhost"></div>
+        </div>
+        <div class="pane">
+          <div class="pt prow">
+            <span>Страница</span><span class="grow"></span>
+            <label><input type="checkbox" id="autoRun" checked> автообновление</label>
+            <button class="mini" id="htmlRun">▶ Обновить</button>
+          </div>
+          <iframe id="preview" class="preview" sandbox="allow-scripts allow-modals" title="Страница"></iframe>
+          <div id="conBox" class="con hidden">
+            <div class="conh"><span>Консоль</span><button class="mini" id="conClr">очистить</button></div>
+            <div id="conOut"></div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 
 </div>
@@ -104,6 +153,13 @@
 <script src="/vendor/codemirror/python.js"></script>
 <script src="/vendor/codemirror/closebrackets.js"></script>
 <script src="/vendor/codemirror/matchbrackets.js"></script>
+<script src="/vendor/codemirror/xml.js"></script>
+<script src="/vendor/codemirror/javascript.js"></script>
+<script src="/vendor/codemirror/css.js"></script>
+<script src="/vendor/codemirror/htmlmixed.js"></script>
+<script src="/vendor/codemirror/xml-fold.js"></script>
+<script src="/vendor/codemirror/closetag.js"></script>
+<script src="/preview.js"></script>
 <script>
 (function () {
   const $ = (id) => document.getElementById(id);
@@ -164,13 +220,14 @@
     locked = !!l;
     $('area').disabled = locked;
     if (cm) cm.setOption('readOnly', locked ? 'nocursor' : false);
+    if (hcm) hcm.setOption('readOnly', locked ? 'nocursor' : false);
     $('lockMsg').style.display = locked ? 'block' : 'none';
     updateButtons();
   }
 
   // ---------- режимы ----------
   function setMode(m) {
-    if (m !== 'python') m = 'text';
+    if (m !== 'python' && m !== 'html') m = 'text';
     if (m === mode && $('work').dataset.init) return;
     $('work').dataset.init = '1';
     if (mode === 'python') {
@@ -178,9 +235,14 @@
       if (pyState !== 'idle') stopCode(true);
     }
     mode = m;
-    $('textPane').classList.toggle('hidden', m === 'python');
+    $('textPane').classList.toggle('hidden', m !== 'text');
     $('pyPane').classList.toggle('hidden', m !== 'python');
-    document.body.classList.toggle('wide', m === 'python');
+    $('htmlPane').classList.toggle('hidden', m !== 'html');
+    document.body.classList.toggle('wide', m !== 'text');
+    if (m === 'html') {
+      initHtmlEditor();
+      setTimeout(() => { hcm.refresh(); renderPreview(); }, 0);
+    }
     if (m === 'python') {
       initEditor();
       silent = true; cm.setValue($('area').value); silent = false;
@@ -368,6 +430,110 @@
   $('stopBtn').addEventListener('click', () => stopCode(false));
   $('clrBtn').addEventListener('click', clearTerm);
 
+  // ---------- HTML / CSS / JS ----------
+  let files = { html: '', css: '', js: '' };
+  let hcm = null;          // один редактор, внутри три документа (по вкладкам)
+  let hdocs = null;
+  let hTab = 'html';
+  let prevTimer = null;
+  let filesTimer = null;
+
+  function readFiles() {
+    if (!hdocs) return { html: files.html, css: files.css, js: files.js };
+    return { html: hdocs.html.getValue(), css: hdocs.css.getValue(), js: hdocs.js.getValue() };
+  }
+
+  function initHtmlEditor() {
+    if (hcm) return;
+    hdocs = {
+      html: CodeMirror.Doc(files.html, 'htmlmixed'),
+      css: CodeMirror.Doc(files.css, 'css'),
+      js: CodeMirror.Doc(files.js, 'javascript')
+    };
+    hcm = CodeMirror($('htmlEditorHost'), {
+      value: hdocs.html,
+      lineNumbers: true,
+      indentUnit: 2,
+      tabSize: 2,
+      indentWithTabs: false,
+      matchBrackets: true,
+      autoCloseBrackets: true,
+      autoCloseTags: true,
+      extraKeys: {
+        Tab: (c) => c.execCommand('insertSoftTab'),
+        'Shift-Tab': (c) => c.execCommand('indentLess'),
+        'Ctrl-Enter': () => renderPreview(),
+        'Cmd-Enter': () => renderPreview()
+      }
+    });
+    Object.keys(hdocs).forEach((k) => hdocs[k].on('change', onFilesChange));
+    hcm.setOption('readOnly', locked ? 'nocursor' : false);
+  }
+
+  function onFilesChange() {
+    if (silent) return;
+    files = readFiles();
+    clearTimeout(filesTimer);
+    filesTimer = setTimeout(sendFiles, 150);
+    schedulePreview();
+  }
+
+  function sendFiles() {
+    if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: 'files', files: readFiles() }));
+  }
+
+  function setFiles(f) {
+    f = f || {};
+    files = { html: f.html || '', css: f.css || '', js: f.js || '' };
+    if (hdocs) {
+      silent = true;
+      ['html', 'css', 'js'].forEach((k) => { if (hdocs[k].getValue() !== files[k]) hdocs[k].setValue(files[k]); });
+      silent = false;
+    }
+    if (mode === 'html') renderPreview();
+  }
+
+  document.querySelectorAll('.tab').forEach((b) => b.addEventListener('click', () => {
+    if (!hcm) return;
+    hTab = b.dataset.tab;
+    document.querySelectorAll('.tab').forEach((x) => x.classList.toggle('active', x === b));
+    hcm.swapDoc(hdocs[hTab]);
+    hcm.refresh();
+    hcm.focus();
+  }));
+
+  function renderPreview() {
+    clearConsole();
+    $('preview').srcdoc = LTPreview.buildDoc(readFiles(), { scripts: true, console: true });
+  }
+  function schedulePreview() {
+    if (!$('autoRun').checked) return;
+    clearTimeout(prevTimer);
+    prevTimer = setTimeout(renderPreview, 600);
+  }
+  $('htmlRun').addEventListener('click', renderPreview);
+  $('autoRun').addEventListener('change', () => { if ($('autoRun').checked) renderPreview(); });
+
+  // консоль страницы (console.log и ошибки из iframe)
+  function clearConsole() {
+    $('conOut').textContent = '';
+    $('conBox').classList.add('hidden');
+  }
+  $('conClr').addEventListener('click', clearConsole);
+  window.addEventListener('message', (e) => {
+    if (e.source !== $('preview').contentWindow) return;
+    const d = e.data;
+    if (!d || !d.lt) return;
+    const line = document.createElement('div');
+    line.className = d.t === 'error' ? 'error' : (d.t === 'warn' ? 'warn' : '');
+    line.textContent = String(d.m).slice(0, 2000);
+    const out = $('conOut');
+    out.appendChild(line);
+    while (out.childNodes.length > 200) out.removeChild(out.firstChild);
+    $('conBox').classList.remove('hidden');
+    out.scrollTop = out.scrollHeight;
+  });
+
   // ---------- связь с сервером ----------
   function connect() {
     ws = new WebSocket(wsUrl());
@@ -385,6 +551,14 @@
         $('who').textContent = state.name + ' · комната ' + state.code;
         locked = !!m.locked;
         setMode(m.mode);
+        {
+          const lf = readFiles();
+          const localEmpty = !lf.html && !lf.css && !lf.js;
+          const sf = m.files || {};
+          const serverEmpty = !sf.html && !sf.css && !sf.js;
+          if (!localEmpty && serverEmpty) sendFiles(); // ученик успел набрать без связи
+          else setFiles(sf);
+        }
         // не затираем то, что ученик успел набрать без связи
         if (getCode() === '' || m.text !== '') setCode(m.text);
         if (termText === '' && m.output) { termText = m.output; renderTerm(); }
@@ -398,6 +572,7 @@
         applyLock(m.locked);
       } else if (m.type === 'set_text') {
         setCode(m.text);
+        if (m.files) setFiles(m.files);
         if (m.clearOutput) clearTerm();
       } else if (m.type === 'kicked') {
         closedByKick = true;
