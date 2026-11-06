@@ -58,22 +58,14 @@
   .note { font-size:12px; color:var(--warn); }
 
   /* режим HTML: список учеников, код во вкладках, страница */
-  .hview { display:grid; grid-template-columns:calc(var(--tw, 160px) * 2 + 36px) 1fr; gap:14px; height:max(480px, calc(100vh - 150px)); }
-  .slist { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:8px; align-content:start; grid-auto-rows:max-content; background:var(--card); border-radius:12px; box-shadow:0 2px 10px rgba(20,30,60,.08); overflow:auto; padding:8px; }
-  .sitem { display:flex; flex-direction:column; min-width:0; background:#fff; border:2px solid #e6eaf4; border-radius:10px; cursor:pointer; overflow:hidden; transition:border-color .3s, box-shadow .3s; }
-  .sitem:hover { border-color:#b9c8f5; }
-  .sitem.active { border-color:var(--accent); box-shadow:0 0 0 2px rgba(59,108,246,.18); }
-  .sitem.flash { border-color:var(--warn); }
+  .hview { display:grid; grid-template-columns:210px 1fr; gap:14px; height:max(480px, calc(100vh - 150px)); }
+  .slist { background:var(--card); border-radius:12px; box-shadow:0 2px 10px rgba(20,30,60,.08); overflow:auto; padding:6px; }
+  .sitem { display:flex; align-items:center; gap:8px; padding:9px 10px; border-radius:8px; cursor:pointer; transition:background .3s; }
+  .sitem:hover { background:#f1f4fb; }
+  .sitem.active { background:#e4ecff; font-weight:600; }
+  .sitem.flash { background:#fff4cf; }
   .sitem.offline { opacity:.6; }
-  .sth { display:flex; align-items:center; gap:5px; padding:4px 6px; background:#f6f8fc; }
-  .sth .nm { cursor:inherit; font-size:12px; }
-  .sth .cnt { font-size:10px; }
-  .sth .x { font-size:13px; padding:0 3px; }
-  .sthumb { flex:none; position:relative; width:100%; height:calc(500px * var(--sc, .2)); overflow:hidden; background:#fff; border-bottom:1px solid #eceff6; }
-  .sprev { position:absolute; left:0; top:0; width:800px; height:500px; border:0; background:#fff; transform:scale(var(--sc, .2)); transform-origin:0 0; pointer-events:none; }
-  .scw { flex:none; position:relative; background:#fbfcfe; }
-  .scode { margin:0; padding:4px 6px; height:58px; overflow:hidden; white-space:pre; font:11px/1.35 ui-monospace, "Cascadia Code", Consolas, monospace; color:#303a52; }
-  .scw .lb { position:absolute; right:4px; top:3px; font-size:9px; line-height:1.3; color:#fff; background:#8c97b2; padding:0 4px; border-radius:4px; }
+  .sitem .nm { cursor:inherit; font-weight:inherit; }
   .hmain { display:grid; grid-template-columns:1fr 1fr; gap:12px; min-height:0; min-width:0; }
   .hcol { display:flex; flex-direction:column; min-height:0; min-width:0; }
   .hhead { min-height:32px; margin-bottom:4px; }
@@ -93,7 +85,7 @@
   @media (max-width: 900px) {
     .hview { grid-template-columns:1fr; grid-template-rows:auto auto; height:auto; }
     .slist { display:flex; overflow-x:auto; }
-    .sitem { flex:none; width:calc(var(--tw, 160px) + 20px); }
+    .sitem { flex:none; }
     .hmain { grid-template-columns:1fr; grid-template-rows:60vh 60vh; }
   }
 
@@ -218,7 +210,7 @@
   const students = new Map();
   let locked = false;
   let mode = 'text';
-  let fs = 15, tileW = 320, sideW = 160;
+  let fs = 15, tileW = 320;
   let intentionalClose = false;
   let focusId = null;
 
@@ -253,10 +245,9 @@
         const prev = students.get(m.student.id);
         students.set(m.student.id, m.student);
         if (mode === 'html') {
-          const keys = filesChanged(prev, m.student);
-          if (keys.length) lastKey[m.student.id] = keys[keys.length - 1];
+          const changed = !prev || JSON.stringify(prev.files) !== JSON.stringify(m.student.files);
           if (isNew) { renderList(); ensureSel(); }
-          else updateListItem(m.student, keys.length > 0);
+          else updateListItem(m.student, changed);
           if (m.student.id === selId) updateHView(m.student);
         } else {
           if (isNew) renderAll();
@@ -412,6 +403,7 @@
     const html = mode === 'html';
     $('grid').classList.toggle('hidden', html);
     $('hview').classList.toggle('hidden', !html || students.size === 0);
+    $('tileCtl').classList.toggle('hidden', html);
   }
 
   function initHView() {
@@ -424,71 +416,29 @@
     hcm = CodeMirror($('hCode'), { value: hdocs.html, lineNumbers: true, readOnly: true, lineWrapping: true, tabSize: 2 });
   }
 
-  const lastKey = {};   // id ученика -> вкладка, которую он менял последней
-
-  function filesChanged(prev, st) {
-    if (!prev) return [];
-    const a = prev.files || {}, b = st.files || {};
-    return ['html', 'css', 'js'].filter((k) => (a[k] || '') !== (b[k] || ''));
-  }
-
-  // Маленькое окошко ученика: миниатюра страницы + последние строки кода
-  function sitemEl(s) {
-    const el = document.createElement('div');
-    el.className = 'sitem';
-    el.dataset.id = s.id;
-    const h = document.createElement('div'); h.className = 'sth';
-    const d = document.createElement('span'); d.className = 'dot';
-    const n = document.createElement('span'); n.className = 'nm';
-    const c = document.createElement('span'); c.className = 'cnt';
-    const x = document.createElement('button'); x.className = 'x'; x.textContent = '✕'; x.title = 'Удалить ученика';
-    x.onclick = (e) => { e.stopPropagation(); if (confirm('Удалить «' + s.name + '» из комнаты?')) ws.send(JSON.stringify({ type: 'kick', id: s.id })); };
-    h.append(d, n, c, x);
-    const th = document.createElement('div'); th.className = 'sthumb';
-    const pv = document.createElement('iframe'); pv.className = 'sprev'; pv.setAttribute('sandbox', ''); pv.tabIndex = -1; pv.title = s.name;
-    th.appendChild(pv);
-    const w = document.createElement('div'); w.className = 'scw';
-    const pre = document.createElement('pre'); pre.className = 'scode';
-    const lb = document.createElement('span'); lb.className = 'lb';
-    w.append(pre, lb);
-    el.append(h, th, w);
-    el.onclick = () => selectStudent(s.id);
-    fillSItem(el, s);
-    return el;
-  }
-
-  function fillSItem(el, s) {
-    el.classList.toggle('offline', !s.online);
-    el.classList.toggle('active', s.id === selId);
-    el.querySelector('.nm').textContent = s.name;
-    el.querySelector('.cnt').textContent = filesLen(s);
-    const f = s.files || {};
-    // какой файл показывать: последний изменённый; если он пуст — первый непустой
-    let k = lastKey[s.id];
-    if (!k || !(f[k] || '')) k = ['html', 'css', 'js'].find((x) => (f[x] || '')) || 'html';
-    const tail = (f[k] || '').replace(/\s+$/, '').split('\n').slice(-5).join('\n');
-    el.querySelector('.scode').textContent = tail;
-    el.querySelector('.lb').textContent = k.toUpperCase();
-    // миниатюра страницы (без JS — безопасно и легко)
-    const pv = el.querySelector('.sprev');
-    const key = (f.html || '') + '\u0000' + (f.css || '');
-    if (pv._key !== key) {
-      const first = pv._key === undefined;
-      pv._key = key;
-      clearTimeout(pv._t);
-      pv._t = setTimeout(() => { pv.srcdoc = LTPreview.buildDoc(f, { scripts: false }); }, first ? 0 : 900);
-    }
-  }
-
   function renderList() {
     const list = $('slist'); list.innerHTML = '';
-    sortedStudents().forEach((s) => list.appendChild(sitemEl(s)));
+    sortedStudents().forEach((s) => {
+      const el = document.createElement('div');
+      el.className = 'sitem' + (s.online ? '' : ' offline') + (s.id === selId ? ' active' : '');
+      el.dataset.id = s.id;
+      const d = document.createElement('span'); d.className = 'dot';
+      const n = document.createElement('span'); n.className = 'nm'; n.textContent = s.name;
+      const c = document.createElement('span'); c.className = 'cnt'; c.textContent = filesLen(s);
+      const x = document.createElement('button'); x.className = 'x'; x.textContent = '✕'; x.title = 'Удалить ученика';
+      x.onclick = (e) => { e.stopPropagation(); if (confirm('Удалить «' + s.name + '» из комнаты?')) ws.send(JSON.stringify({ type: 'kick', id: s.id })); };
+      el.onclick = () => selectStudent(s.id);
+      el.append(d, n, c, x);
+      list.appendChild(el);
+    });
   }
 
   function updateListItem(s, changed) {
     const el = $('slist').querySelector('[data-id="' + s.id + '"]');
     if (!el) { renderList(); return; }
-    fillSItem(el, s);
+    el.classList.toggle('offline', !s.online);
+    el.querySelector('.nm').textContent = s.name;
+    el.querySelector('.cnt').textContent = filesLen(s);
     if (changed && s.id !== selId) {
       el.classList.add('flash');
       clearTimeout(el._f);
@@ -508,11 +458,7 @@
     if (!s) return;
     selId = id; hKey = null;
     layout(); initHView();
-    document.querySelectorAll('#slist .sitem').forEach((el) => {
-      const on = el.dataset.id === id;
-      el.classList.toggle('active', on);
-      if (on) el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-    });
+    document.querySelectorAll('#slist .sitem').forEach((el) => el.classList.toggle('active', el.dataset.id === id));
     $('hName').textContent = s.name + (s.online ? '' : ' (не в сети)');
     const f = s.files || {};
     ['html', 'css', 'js'].forEach((k) => { hdocs[k].setValue(f[k] || ''); hdocs[k].clearHistory(); });
@@ -729,14 +675,12 @@
     document.documentElement.style.setProperty('--fs', fs + 'px');
     document.documentElement.style.setProperty('--w', tileW + 'px');
     document.documentElement.style.setProperty('--h', Math.round(tileW * 0.9) + 'px');
-    document.documentElement.style.setProperty('--tw', sideW + 'px');
-    document.documentElement.style.setProperty('--sc', ((sideW + 2) / 800).toFixed(4));
     if (hcm) hcm.refresh();
   }
   $('fsPlus').onclick = () => { fs = Math.min(32, fs + 2); applyView(); };
   $('fsMinus').onclick = () => { fs = Math.max(11, fs - 2); applyView(); };
-  $('wPlus').onclick = () => { if (mode === 'html') sideW = Math.min(300, sideW + 30); else tileW = Math.min(900, tileW + 60); applyView(); };
-  $('wMinus').onclick = () => { if (mode === 'html') sideW = Math.max(110, sideW - 30); else tileW = Math.max(220, tileW - 60); applyView(); };
+  $('wPlus').onclick = () => { tileW = Math.min(900, tileW + 60); applyView(); };
+  $('wMinus').onclick = () => { tileW = Math.max(220, tileW - 60); applyView(); };
   applyView();
 
   setInterval(() => { if (ws && ws.readyState === 1) ws.send('{"type":"ping"}'); }, 25000);
