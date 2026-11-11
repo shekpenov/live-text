@@ -5,8 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Урок</title>
 <link rel="stylesheet" href="/vendor/codemirror/codemirror.css">
+<link rel="stylesheet" href="/ui.css">
+<script src="/theme.js"></script>
 <style>
-  :root { --bg:#f4f6fb; --card:#fff; --text:#1c2333; --muted:#6b7385; --accent:#3b6cf6; --danger:#d93b3b; --ok:#2fb36b; }
   * { box-sizing: border-box; }
   body { margin:0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background:var(--bg); color:var(--text); min-height:100vh; }
   .wrap { max-width: 820px; margin: 0 auto; padding: 20px 16px; }
@@ -14,7 +15,7 @@
   .card { background:var(--card); border-radius:14px; padding:22px; box-shadow:0 2px 14px rgba(20,30,60,.08); }
   h1 { font-size: 22px; margin: 0 0 16px; }
   label { display:block; font-size:14px; color:var(--muted); margin:12px 0 6px; }
-  input[type=text] { width:100%; padding:12px 14px; font-size:18px; border:1.5px solid #d5dae6; border-radius:10px; outline:none; }
+  input[type=text] { width:100%; padding:12px 14px; font-size:18px; border:1.5px solid var(--line); border-radius:10px; outline:none; }
   input[type=text]:focus, textarea:focus { border-color:var(--accent); }
   #joinBtn { margin-top:18px; width:100%; padding:13px; font-size:17px; border:0; border-radius:10px; background:var(--accent); color:#fff; cursor:pointer; }
   #joinBtn:hover { filter:brightness(1.07); }
@@ -24,10 +25,71 @@
   .status { font-size:13px; color:var(--muted); display:flex; align-items:center; gap:6px; }
   .dot { width:9px; height:9px; border-radius:50%; background:var(--ok); }
   .dot.off { background:#e09a1a; }
-  textarea { width:100%; height:60vh; min-height:260px; padding:14px; font-size:18px; line-height:1.5; border:1.5px solid #d5dae6; border-radius:10px; outline:none; resize:vertical; font-family: inherit; }
-  textarea:disabled { background:#eceef4; color:#7a8195; }
-  .lock { display:none; background:#fff3d6; color:#7a5200; padding:10px 14px; border-radius:10px; margin-bottom:12px; font-size:14px; }
+  textarea { width:100%; height:60vh; min-height:260px; padding:14px; font-size:18px; line-height:1.5; border:1.5px solid var(--line); border-radius:10px; outline:none; resize:vertical; font-family: inherit; }
+  textarea:disabled { background:var(--soft2); color:var(--muted); }
+  .lock { display:none; background:var(--warnbg); color:var(--warnfg); padding:10px 14px; border-radius:10px; margin-bottom:12px; font-size:14px; }
   .hidden { display:none !important; }
+  #textHost { height:60vh; min-height:260px; border:1.5px solid var(--line); border-radius:10px; overflow:hidden; }
+  #textHost .CodeMirror { height:100%; font-size:18px; line-height:1.5; font-family: inherit; }
+  #textHost .CodeMirror-lines { padding:10px 0; }
+  .locked-ed { background:var(--soft2); }
+  /* правки учителя */
+  .tedit { background:var(--hl); border-bottom:2px solid #e09a1a; border-radius:2px; }
+  /* верхняя панель ученика */
+  .topbar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
+  .topbar .who { font-weight:700; font-size:16px; margin-right:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
+  .sr { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); }
+  .tbg { display:flex; align-items:center; gap:8px; margin-left:auto; flex-wrap:wrap; justify-content:flex-end; }
+  .topbar .grow { flex:1; }
+  .topbar .status { margin-right:4px; }
+  .tchip { display:inline-flex; align-items:center; gap:6px; background:var(--accent-soft); color:var(--accent-text); border-radius:20px; padding:5px 12px; font-weight:700; font-variant-numeric:tabular-nums; font-size:15px; }
+  .tchip.warn { background:var(--warnbg); color:var(--warnfg); }
+  .tchip.over { background:var(--dangerbg); color:var(--danger); }
+  /* Задание */
+  .taskbar { background:var(--soft); border:1.5px solid var(--line2); border-left:4px solid var(--accent); border-radius:12px; padding:10px 14px; margin-bottom:12px; }
+  .taskbar.flash { animation:tkflash 1.2s; }
+  @keyframes tkflash { 0%,60% { background:var(--warnbg); } }
+  .tk-h { display:flex; align-items:center; gap:8px; font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--accent-text); }
+  .tk-t { margin-top:6px; font-size:16px; line-height:1.5; white-space:pre-wrap; overflow-wrap:anywhere; max-height:30vh; overflow:auto; }
+  .tk-t.collapsed { display:none; }
+  .sheet-bg { position:fixed; inset:0; background:var(--overlay); z-index:40; display:none; align-items:flex-end; }
+  .sheet-bg.open { display:flex; }
+  .sheet { background:var(--card); width:100%; max-height:75vh; border-radius:18px 18px 0 0; padding:16px 18px 22px; overflow:auto; }
+  .sheet .tk-h { margin-bottom:8px; }
+  .sheet .tk-t { max-height:none; margin:0; }
+  #taskBtn { display:none; }
+  .has-task #taskBtn { display:none; }
+  /* реакции */
+  .rxwrap { position:relative; }
+  .rxpop { position:absolute; right:0; top:calc(100% + 8px); background:var(--card); border-radius:14px; box-shadow:0 8px 30px rgba(20,30,60,.25); padding:10px; z-index:35; width:232px; }
+  .rxpop.hidden { display:none; }
+  .rxgrid { display:grid; grid-template-columns:repeat(4, 1fr); gap:4px; }
+  .rxgrid button { border:0; background:none; font-size:26px; padding:6px 0; border-radius:10px; cursor:pointer; }
+  .rxgrid button:hover:not(:disabled) { background:var(--soft2); }
+  .rxgrid button:disabled { opacity:.35; cursor:default; }
+  .rxnote { font-size:12px; color:var(--muted); text-align:center; margin-top:6px; min-height:16px; }
+  .themefloat { position:absolute; top:12px; right:12px; }
+  #join { position:relative; }
+  .pt, .tabs { display:flex; align-items:center; }
+  .pt .pc, .tabs .pc, .prow .pc { margin-left:auto; }
+  /* таблица лидеров справа (выезжает, можно скрыть) */
+  .drawer { position:fixed; top:0; right:0; bottom:0; width:min(320px, 92vw); background:var(--card); box-shadow:-6px 0 28px rgba(20,30,60,.18); z-index:30; transform:translateX(105%); transition:transform .25s; display:flex; flex-direction:column; }
+  .drawer.open { transform:none; }
+  .drawer .dh { display:flex; align-items:center; justify-content:space-between; padding:14px 16px; border-bottom:1px solid var(--line2); font-weight:700; }
+  .drawer .dh button { border:0; background:none; font-size:20px; cursor:pointer; color:var(--muted); }
+  .drawer .dt { padding:12px 16px 0; }
+  .lbrows { padding:8px 10px 16px; overflow:auto; }
+  .lbrow { display:grid; grid-template-columns:34px 1fr auto; align-items:center; gap:8px; padding:9px 10px; border-radius:10px; }
+  .lbrow.me { background:var(--okbg); font-weight:700; }
+  .rk { width:26px; height:26px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:13px; font-weight:700; background:var(--soft2); color:var(--muted); }
+  .rk.r1 { background:#f5c542; color:#5a4300; } .rk.r2 { background:#cfd6e4; color:#2c3550; } .rk.r3 { background:#e1a46c; color:#4b2a07; }
+  .lbrow .tm { color:var(--muted); font-variant-numeric:tabular-nums; font-size:13px; }
+  .lbempty { color:var(--muted); padding:24px 16px; text-align:center; font-size:14px; }
+  #tbanner { display:none; align-items:center; gap:10px; background:var(--warnbg); color:var(--warnfg); border:1.5px solid var(--warn); padding:9px 12px; border-radius:10px; margin-bottom:12px; font-size:14px; }
+  #tbanner .tb-t { flex:1; }
+  #tbanner button { border:0; background:#e09a1a; color:#fff; border-radius:8px; padding:6px 12px; font-size:13px; cursor:pointer; }
+  .tab.tpulse::after { content:""; display:inline-block; width:8px; height:8px; border-radius:50%; background:#e09a1a; margin-left:7px; }
+  .tab.active.tpulse::after { background:var(--hl); }
 
   /* Режим Python */
   .toolbar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:10px; }
@@ -35,33 +97,33 @@
   .toolbar button:disabled { opacity:.45; cursor:not-allowed; }
   #runBtn { background:var(--ok); }
   #stopBtn { background:var(--danger); }
-  #clrBtn { background:#e8ecf6; color:var(--text); }
+  #clrBtn { background:var(--soft2); color:var(--text); }
   .pystatus { font-size:13px; color:var(--muted); margin-left:6px; }
-  .split { display:grid; grid-template-columns:1fr 1fr; gap:12px; height:70vh; min-height:360px; }
+  .split { display:grid; grid-template-columns:repeat(var(--pn, 2), minmax(0, 1fr)); gap:12px; height:70vh; min-height:360px; }
   .pane { display:flex; flex-direction:column; min-height:0; }
   .pt { font-size:12px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); margin-bottom:5px; }
-  #editorHost { flex:1; min-height:0; border:1.5px solid #d5dae6; border-radius:10px; overflow:hidden; }
+  #editorHost { flex:1; min-height:0; border:1.5px solid var(--line); border-radius:10px; overflow:hidden; }
   #editorHost .CodeMirror { height:100%; font-size:15px; font-family: ui-monospace, "Cascadia Code", Consolas, monospace; }
   .term { flex:1; min-height:0; overflow:auto; background:#12161f; color:#e6e9f2; border-radius:10px; padding:12px; font:14px/1.5 ui-monospace, "Cascadia Code", Consolas, monospace; white-space:pre-wrap; word-break:break-word; cursor:text; }
   .term .err { color:#ff8a8a; }
-  .term .dim { color:#7f8aa3; }
+  .term .dim { color:var(--muted); }
   .term .usr { color:#9fe3a1; }
   #termIn { background:transparent; border:0; outline:0; color:#9fe3a1; font:inherit; width:70%; min-width:60px; padding:0; caret-color:#fff; }
   .pane { min-width:0; }
 
   /* Режим HTML / CSS / JS */
   .tabs { display:flex; gap:4px; margin-bottom:0; }
-  .tab { padding:8px 16px; font-size:14px; font-weight:600; border:0; border-radius:9px 9px 0 0; background:#e8ecf6; color:var(--text); cursor:pointer; }
+  .tab { padding:8px 16px; font-size:14px; font-weight:600; border:0; border-radius:9px 9px 0 0; background:var(--soft2); color:var(--text); cursor:pointer; }
   .tab.active { background:var(--accent); color:#fff; }
-  .edhost { flex:1; min-height:0; border:1.5px solid #d5dae6; border-radius:0 10px 10px 10px; overflow:hidden; }
+  .edhost { flex:1; min-height:0; border:1.5px solid var(--line); border-radius:0 10px 10px 10px; overflow:hidden; }
   .edhost .CodeMirror { height:100%; font-size:15px; font-family: ui-monospace, "Cascadia Code", Consolas, monospace; }
   .prow { display:flex; align-items:center; gap:10px; min-height:34px; }
   .prow .grow { flex:1; }
   .prow label { margin:0; display:flex; align-items:center; gap:5px; font-size:12px; text-transform:none; letter-spacing:0; color:var(--muted); }
-  .mini { padding:5px 11px; font-size:12px; border:0; border-radius:7px; background:#e8ecf6; color:var(--text); cursor:pointer; }
-  .preview { flex:1; min-height:0; width:100%; background:#fff; border:1.5px solid #d5dae6; border-radius:10px; }
+  .mini { padding:5px 11px; font-size:12px; border:0; border-radius:7px; background:var(--soft2); color:var(--text); cursor:pointer; }
+  .preview { flex:1; min-height:0; width:100%; background:#fff; border:1.5px solid var(--line); border-radius:10px; }
   .con { margin-top:6px; background:#12161f; color:#e6e9f2; border-radius:10px; max-height:30%; display:flex; flex-direction:column; min-height:60px; }
-  .conh { display:flex; justify-content:space-between; align-items:center; padding:4px 10px; font-size:11px; color:#8b94ab; text-transform:uppercase; letter-spacing:.06em; }
+  .conh { display:flex; justify-content:space-between; align-items:center; padding:4px 10px; font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; }
   .conh .mini { background:#232a3b; color:#c7cde0; padding:2px 8px; }
   #conOut { overflow:auto; padding:0 10px 8px; font:13px/1.45 ui-monospace, "Cascadia Code", Consolas, monospace; white-space:pre-wrap; word-break:break-word; }
   #conOut .error { color:#ff8a8a; }
@@ -69,8 +131,20 @@
 
   @media (max-width: 800px) {
     /* телефон: окна одно под другим */
-    .split { grid-template-columns:1fr; grid-template-rows:1fr 1fr; height:82vh; height:82dvh; }
+    .split { grid-template-columns:minmax(0,1fr); grid-template-rows:repeat(var(--pn, 2), minmax(0, 1fr)); height:82vh; height:82dvh; }
     .wrap { padding:8px; }
+    .prow { flex-wrap:wrap; gap:6px; }
+    .prow .grow { display:none; }
+    .prow label { font-size:11px; }
+    .tabs { flex-wrap:wrap; }
+    .tab { padding:8px 12px; }
+    .mini { white-space:nowrap; }
+    .taskbar { display:none; }
+    .has-task #taskBtn { display:inline-flex; }
+    .topbar .who { flex:1 1 auto; }
+    .tbg { width:100%; flex-wrap:nowrap; justify-content:stretch; }
+    .tbg .tb { flex:1; min-width:0; padding:0 8px; font-size:13px; }
+    .tbg .tb span { overflow:hidden; text-overflow:ellipsis; }
     .card { padding:12px; }
   }
 </style>
@@ -79,6 +153,7 @@
 <div class="wrap">
 
   <div id="join" class="card">
+    <button class="ibtn themefloat" id="themeBtn2" title="Светлая / тёмная тема"></button>
     <h1>Вход на урок</h1>
     <label for="code">Код комнаты</label>
     <input id="code" type="text" inputmode="numeric" maxlength="4" placeholder="1234" autocomplete="off">
@@ -89,32 +164,50 @@
   </div>
 
   <div id="work" class="card hidden">
-    <div class="bar">
+    <div class="topbar">
       <div class="who" id="who"></div>
-      <div class="status"><span class="dot" id="dot"></span><span id="stText">подключено</span></div>
+      <button class="ibtn" id="themeBtn" title="Светлая / тёмная тема"></button>
+      <div class="tchip hidden" id="tchip"><i data-i="clock"></i><span id="tval">00:00</span></div>
+      <span class="dot" id="dot" title="Связь с сервером"></span><span class="sr" id="stText">подключено</span>
+      <div class="tbg">
+        <button class="ibtn" id="taskBtn" title="Показать задание"><i data-i="task"></i><span class="dotmark hidden" id="taskDot"></span></button>
+        <div class="rxwrap">
+          <button class="ibtn" id="rxBtn" title="Отправить реакцию"><i data-i="smile"></i></button>
+          <div class="rxpop hidden" id="rxPop"><div class="rxgrid" id="rxGrid"></div><div class="rxnote" id="rxNote"></div></div>
+        </div>
+        <button class="tb" id="handBtn"></button>
+        <button class="tb ok" id="doneBtn"></button>
+        <button class="ibtn" id="lbBtn" title="Таблица: кто закончил"><i data-i="trophy"></i><span class="bdg" id="lbCount"></span></button>
+      </div>
+    </div>
+    <div class="taskbar hidden" id="taskBar">
+      <div class="tk-h"><i data-i="task"></i><span>Задание</span><button class="pc-b" id="tkToggle" title="Свернуть / развернуть"><i data-i="down"></i></button></div>
+      <div class="tk-t" id="taskText"></div>
     </div>
     <div class="lock" id="lockMsg">Учитель заблокировал ввод.</div>
+    <div id="tbanner"><i data-i="edit"></i><span class="tb-t">Учитель внёс правки в ваш код. Они выделены жёлтым.</span><button id="tbOk">Понятно</button></div>
 
     <!-- Режим «Текст» -->
     <div id="textPane">
-      <textarea id="area" placeholder="Пишите здесь..." spellcheck="false"></textarea>
+      <div id="textHost"></div>
     </div>
 
     <!-- Режим «Python» -->
     <div id="pyPane" class="hidden">
       <div class="toolbar">
-        <button id="runBtn" disabled>▶ Запустить</button>
-        <button id="stopBtn" disabled>■ Стоп</button>
-        <button id="clrBtn">Очистить вывод</button>
+        <button id="runBtn" disabled><i data-i="play"></i><span>Запустить</span></button>
+        <button id="stopBtn" disabled><i data-i="stop"></i><span>Стоп</span></button>
+        <button id="clrBtn"><i data-i="trash"></i><span>Очистить вывод</span></button>
         <span class="pystatus" id="pyStatus"></span>
       </div>
-      <div class="split">
-        <div class="pane">
-          <div class="pt">Код (Ctrl+Enter — запуск)</div>
+      <div class="restorebar hidden" id="restPy"></div>
+      <div class="split" id="splitPy">
+        <div class="pane" id="paneCode">
+          <div class="pt"><span>Код (Ctrl+Enter — запуск)</span></div>
           <div id="editorHost"></div>
         </div>
-        <div class="pane">
-          <div class="pt">Вывод и ввод</div>
+        <div class="pane" id="paneOut">
+          <div class="pt"><span>Вывод и ввод</span></div>
           <div class="term" id="term"><span id="termOut"></span><input id="termIn" class="hidden" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
         </div>
       </div>
@@ -122,20 +215,21 @@
 
     <!-- Режим «HTML» -->
     <div id="htmlPane" class="hidden">
-      <div class="split">
-        <div class="pane">
-          <div class="tabs">
+      <div class="restorebar hidden" id="restHt"></div>
+      <div class="split" id="splitHt">
+        <div class="pane" id="paneEd">
+          <div class="tabs" id="tabsRow">
             <button class="tab active" data-tab="html">HTML</button>
             <button class="tab" data-tab="css">CSS</button>
             <button class="tab" data-tab="js">JS</button>
           </div>
           <div id="htmlEditorHost" class="edhost"></div>
         </div>
-        <div class="pane">
-          <div class="pt prow">
+        <div class="pane" id="panePv">
+          <div class="pt prow" id="pvHead">
             <span>Страница</span><span class="grow"></span>
             <label><input type="checkbox" id="autoRun" checked> автообновление</label>
-            <button class="mini" id="htmlRun">▶ Обновить</button>
+            <button class="mini" id="htmlRun"><i data-i="reset"></i><span>Обновить</span></button>
           </div>
           <iframe id="preview" class="preview" sandbox="allow-scripts allow-modals" title="Страница"></iframe>
           <div id="conBox" class="con hidden">
@@ -148,6 +242,13 @@
   </div>
 
 </div>
+
+<div class="sheet-bg" id="taskSheet"><div class="sheet"><div class="tk-h"><i data-i="task"></i><span>Задание</span><button class="pc-b" id="sheetClose" title="Закрыть"><i data-i="x"></i></button></div><div class="tk-t" id="sheetText"></div></div></div>
+
+<aside class="drawer" id="drawer">
+  <div class="dh"><span>Кто закончил</span><button id="lbClose" title="Скрыть"><i data-i="x"></i></button></div>
+  <div class="lbrows" id="board"></div>
+</aside>
 
 <script src="/vendor/codemirror/codemirror.js"></script>
 <script src="/vendor/codemirror/python.js"></script>
@@ -200,11 +301,11 @@
   }
 
   // ---------- код / текст ----------
-  function getCode() { return mode === 'python' && cm ? cm.getValue() : $('area').value; }
+  function getCode() { return mode === 'python' && cm ? cm.getValue() : tcm.getValue(); }
   function setCode(v) {
     silent = true;
-    $('area').value = v;
-    if (cm) cm.setValue(v);
+    if (tcm.getValue() !== v) tcm.setValue(v);
+    if (cm && cm.getValue() !== v) cm.setValue(v);
     silent = false;
   }
   function scheduleSend() {
@@ -214,11 +315,15 @@
   function sendNow() {
     if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: 'text', text: getCode() }));
   }
-  $('area').addEventListener('input', () => { if (!silent) scheduleSend(); });
+  // редактор для режима «Текст» (в CodeMirror, чтобы можно было выделять правки учителя)
+  const tcm = CodeMirror($('textHost'), { value: '', lineWrapping: true, placeholder: 'Пишите здесь...', spellcheck: true });
+  tcm.getInputField().setAttribute('spellcheck', 'false');
+  tcm.on('change', () => { if (!silent) scheduleSend(); });
 
   function applyLock(l) {
     locked = !!l;
-    $('area').disabled = locked;
+    tcm.setOption('readOnly', locked ? 'nocursor' : false);
+    $('textHost').classList.toggle('locked-ed', locked);
     if (cm) cm.setOption('readOnly', locked ? 'nocursor' : false);
     if (hcm) hcm.setOption('readOnly', locked ? 'nocursor' : false);
     $('lockMsg').style.display = locked ? 'block' : 'none';
@@ -231,7 +336,7 @@
     if (m === mode && $('work').dataset.init) return;
     $('work').dataset.init = '1';
     if (mode === 'python') {
-      if (cm) { silent = true; $('area').value = cm.getValue(); silent = false; }
+      if (cm) { silent = true; tcm.setValue(cm.getValue()); silent = false; }
       if (pyState !== 'idle') stopCode(true);
     }
     mode = m;
@@ -243,9 +348,10 @@
       initHtmlEditor();
       setTimeout(() => { hcm.refresh(); renderPreview(); }, 0);
     }
+    if (m === 'text') setTimeout(() => tcm.refresh(), 0);
     if (m === 'python') {
       initEditor();
-      silent = true; cm.setValue($('area').value); silent = false;
+      silent = true; cm.setValue(tcm.getValue()); silent = false;
       initPython();
       setTimeout(() => cm.refresh(), 0);
     }
@@ -256,7 +362,7 @@
   function initEditor() {
     if (cm) return;
     cm = CodeMirror($('editorHost'), {
-      value: $('area').value,
+      value: tcm.getValue(),
       mode: 'python',
       lineNumbers: true,
       indentUnit: 4,
@@ -458,7 +564,7 @@
       indentWithTabs: false,
       matchBrackets: true,
       autoCloseBrackets: true,
-      autoCloseTags: true,
+      autoCloseTags: { whenClosing: false },
       extraKeys: {
         Tab: (c) => c.execCommand('insertSoftTab'),
         'Shift-Tab': (c) => c.execCommand('indentLess'),
@@ -496,6 +602,7 @@
   document.querySelectorAll('.tab').forEach((b) => b.addEventListener('click', () => {
     if (!hcm) return;
     hTab = b.dataset.tab;
+    b.classList.remove('tpulse');
     document.querySelectorAll('.tab').forEach((x) => x.classList.toggle('active', x === b));
     hcm.swapDoc(hdocs[hTab]);
     hcm.refresh();
@@ -534,6 +641,178 @@
     out.scrollTop = out.scrollHeight;
   });
 
+  // ---------- правки учителя ----------
+  const tMarks = [];
+  function showTBanner(on) { $('tbanner').style.display = on ? 'flex' : 'none'; }
+  $('tbOk').addEventListener('click', () => {
+    while (tMarks.length) { try { tMarks.pop().clear(); } catch (e) { /* уже удалена */ } }
+    showTBanner(false);
+    document.querySelectorAll('.tab.tpulse').forEach((b) => b.classList.remove('tpulse'));
+  });
+
+  // Вносит в документ только изменившийся кусок и выделяет его жёлтым
+  function applyTeacher(cmOrDoc, nv) {
+    const doc = cmOrDoc.getDoc ? cmOrDoc.getDoc() : cmOrDoc;
+    const old = doc.getValue();
+    if (old === nv) return;
+    const max = Math.min(old.length, nv.length);
+    let a = 0;
+    while (a < max && old.charCodeAt(a) === nv.charCodeAt(a)) a++;
+    let b = 0;
+    while (b < max - a && old.charCodeAt(old.length - 1 - b) === nv.charCodeAt(nv.length - 1 - b)) b++;
+    const mid = nv.slice(a, nv.length - b);
+    silent = true;
+    doc.replaceRange(mid, doc.posFromIndex(a), doc.posFromIndex(old.length - b));
+    silent = false;
+    const from = doc.posFromIndex(a), to = doc.posFromIndex(a + mid.length);
+    if (mid.length) {
+      tMarks.push(doc.markText(from, to, { className: 'tedit' }));
+      if (tMarks.length > 300) { try { tMarks.shift().clear(); } catch (e) { /* уже удалена */ } }
+    }
+    return { from, to };
+  }
+
+  function onTeacherEdit(field, value) {
+    value = String(value || '');
+    let r;
+    if (field === 'text') {
+      const act = mode === 'python' && cm ? cm : tcm;
+      const other = act === cm ? tcm : cm;
+      r = applyTeacher(act, value);
+      if (other && other.getValue() !== value) { silent = true; other.setValue(value); silent = false; }
+      if (r) act.scrollIntoView(r.to, 80);
+    } else if (hdocs && hdocs[field]) {
+      r = applyTeacher(hdocs[field], value);
+      files = readFiles();
+      if (hTab === field) { if (r) hcm.scrollIntoView(r.to, 80); }
+      else {
+        const tb = document.querySelector('.tab[data-tab="' + field + '"]');
+        if (tb) tb.classList.add('tpulse');
+      }
+      if (mode === 'html') schedulePreview();
+    } else {
+      // редактор HTML ещё не создан (ученик не в этом режиме) — просто обновим данные
+      files = { ...files, [field]: value };
+    }
+    showTBanner(true);
+  }
+
+  // ---------- рука и «Я всё» ----------
+  let handUp = false, amDone = false;
+  LT.hydrate();
+  LT.btn($('handBtn'), 'hand', 'Поднять руку'); LT.btn($('doneBtn'), 'check', 'Я закончил');
+  function fmtMs(ms) { const t = Math.round(ms / 1000); return String(Math.floor(t / 60)).padStart(2, '0') + ':' + String(t % 60).padStart(2, '0'); }
+  function setHand(v) {
+    handUp = !!v;
+    $('handBtn').classList.toggle('on', handUp);
+    LT.btn($('handBtn'), 'hand', handUp ? 'Опустить руку' : 'Поднять руку');
+  }
+  function setBoard(list) {
+    list = list || [];
+    amDone = list.some((x) => x.id === state.id);
+    $('doneBtn').classList.toggle('on', amDone);
+    LT.btn($('doneBtn'), amDone ? 'undo' : 'check', amDone ? 'Я ещё не закончил' : 'Я закончил');
+    $('lbCount').textContent = list.length ? String(list.length) : '';
+    const b = $('board');
+    b.textContent = '';
+    if (!list.length) {
+      const e = document.createElement('div'); e.className = 'lbempty'; e.textContent = 'Пока никто не закончил';
+      b.appendChild(e); return;
+    }
+    list.forEach((x, i) => {
+      const r = document.createElement('div'); r.className = 'lbrow' + (x.id === state.id ? ' me' : '');
+      const rk = document.createElement('span'); rk.className = 'rk' + (i < 3 ? ' r' + (i + 1) : ''); rk.textContent = String(i + 1);
+      const nm = document.createElement('span'); nm.textContent = x.name;
+      const tm = document.createElement('span'); tm.className = 'tm'; tm.textContent = x.ms == null ? '' : fmtMs(x.ms);
+      r.append(rk, nm, tm); b.appendChild(r);
+    });
+  }
+  // таймер урока
+  let timer = null; // {running, elapsed, limitMs, recv}
+  function setTimerState(t) {
+    const was = timer && timer.running;
+    timer = t ? Object.assign({}, t, { recv: Date.now() }) : null;
+    if (was && timer && timer.expired) LT.chime();
+    tickTimer();
+  }
+  function tickTimer() {
+    const chip = $('tchip');
+    if (!timer || (!timer.running && !timer.elapsed)) { chip.classList.add('hidden'); return; }
+    const el = timer.elapsed + (timer.running ? Date.now() - timer.recv : 0);
+    let txt, cls = '';
+    if (timer.limitMs) {
+      const left = timer.limitMs - el;
+      if (left <= 0) { txt = 'Время вышло'; cls = 'over'; }
+      else { txt = fmtMs(left); if (left < 60000) cls = 'warn'; }
+    } else txt = fmtMs(el);
+    chip.classList.remove('hidden', 'warn', 'over');
+    if (cls) chip.classList.add(cls);
+    $('tval').textContent = txt;
+  }
+  setInterval(tickTimer, 500);
+  $('lbBtn').addEventListener('click', () => $('drawer').classList.toggle('open'));
+  $('lbClose').addEventListener('click', () => $('drawer').classList.remove('open'));
+  function wsSend(o) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(o)); }
+  $('handBtn').addEventListener('click', () => { setHand(!handUp); wsSend({ type: 'hand', hand: handUp }); });
+  $('doneBtn').addEventListener('click', () => wsSend({ type: 'done', done: !amDone }));
+
+  // ---------- задание ----------
+  let taskText = '', tkCollapsed = false;
+  function setTask(t, announce) {
+    const txt = (t && t.text) || '';
+    const changed = txt !== taskText;
+    taskText = txt;
+    $('taskText').textContent = txt; $('sheetText').textContent = txt;
+    $('taskBar').classList.toggle('hidden', !txt);
+    $('work').classList.toggle('has-task', !!txt);
+    if (txt && announce && changed) {
+      $('taskBar').classList.remove('flash'); void $('taskBar').offsetWidth; $('taskBar').classList.add('flash');
+      $('taskDot').classList.remove('hidden');
+    }
+    if (!txt) { $('taskDot').classList.add('hidden'); $('taskSheet').classList.remove('open'); }
+  }
+  $('tkToggle').addEventListener('click', () => {
+    tkCollapsed = !tkCollapsed;
+    $('taskText').classList.toggle('collapsed', tkCollapsed);
+    $('tkToggle').style.transform = tkCollapsed ? 'rotate(-90deg)' : '';
+  });
+  $('taskBtn').addEventListener('click', () => { $('taskSheet').classList.add('open'); $('taskDot').classList.add('hidden'); });
+  $('sheetClose').addEventListener('click', () => $('taskSheet').classList.remove('open'));
+  $('taskSheet').addEventListener('click', (e) => { if (e.target === $('taskSheet')) $('taskSheet').classList.remove('open'); });
+
+  // ---------- реакции ----------
+  const RX = ['👍', '👏', '❤️', '😂', '😮', '🤔', '🔥', '🎉'];
+  let rxUntil = 0;
+  RX.forEach((e) => {
+    const b = document.createElement('button'); b.textContent = e;
+    b.onclick = () => { if (Date.now() < rxUntil) return; wsSend({ type: 'reaction', emoji: e }); $('rxPop').classList.add('hidden'); };
+    $('rxGrid').appendChild(b);
+  });
+  function rxTick() {
+    const left = Math.ceil((rxUntil - Date.now()) / 1000);
+    const wait = left > 0;
+    $('rxGrid').querySelectorAll('button').forEach((b) => { b.disabled = wait; });
+    $('rxNote').textContent = wait ? 'Слишком часто. Пауза ещё ' + left + ' с' : 'Реакцию увидят все';
+  }
+  setInterval(rxTick, 500); rxTick();
+  $('rxBtn').addEventListener('click', (e) => { e.stopPropagation(); $('rxPop').classList.toggle('hidden'); rxTick(); });
+  document.addEventListener('click', (e) => { if (!e.target.closest('.rxwrap')) $('rxPop').classList.add('hidden'); });
+
+  // ---------- тема ----------
+  function themeIcons() { ['themeBtn', 'themeBtn2'].forEach((id) => { $(id).innerHTML = LT.ic(LT.theme() === 'dark' ? 'sun' : 'moon'); }); }
+  ['themeBtn', 'themeBtn2'].forEach((id) => $(id).addEventListener('click', () => LT.toggleTheme()));
+  window.addEventListener('lt-theme', () => { themeIcons(); if (cm) cm.refresh(); if (hcm) hcm.refresh(); tcm.refresh(); });
+  themeIcons();
+
+  // ---------- окна: перетаскивание, стрелки, скрытие ----------
+  function refreshEditors() { setTimeout(() => { try { if (cm) cm.refresh(); if (hcm) hcm.refresh(); } catch (e) { /* ещё не создан */ } }, 0); }
+  LT.panes($('splitPy'), { key: 'stu-py', restore: $('restPy'), onChange: refreshEditors, panes: [
+    { id: 'code', el: $('paneCode'), title: 'Код', slot: $('paneCode').querySelector('.pt') },
+    { id: 'out', el: $('paneOut'), title: 'Вывод', slot: $('paneOut').querySelector('.pt') }] });
+  LT.panes($('splitHt'), { key: 'stu-html', restore: $('restHt'), onChange: refreshEditors, panes: [
+    { id: 'ed', el: $('paneEd'), title: 'Код', slot: $('tabsRow') },
+    { id: 'pv', el: $('panePv'), title: 'Страница', slot: $('pvHead') }] });
+
   // ---------- связь с сервером ----------
   function connect() {
     ws = new WebSocket(wsUrl());
@@ -563,6 +842,10 @@
         if (getCode() === '' || m.text !== '') setCode(m.text);
         if (termText === '' && m.output) { termText = m.output; renderTerm(); }
         applyLock(m.locked);
+        setHand(m.hand);
+        setBoard(m.board);
+        setTimerState(m.timer);
+        setTask(m.task, false);
         setStatus(true);
         if (getCode() !== m.text) sendNow();
         sendOutput();
@@ -574,6 +857,20 @@
         setCode(m.text);
         if (m.files) setFiles(m.files);
         if (m.clearOutput) clearTerm();
+      } else if (m.type === 'board') {
+        setBoard(m.board);
+      } else if (m.type === 'timer') {
+        setTimerState(m);
+      } else if (m.type === 'task') {
+        setTask(m.task, true);
+      } else if (m.type === 'reaction') {
+        LT.reaction(m.emoji, m.name, m.rid);
+      } else if (m.type === 'reaction_wait') {
+        rxUntil = Date.now() + (m.ms || 0); rxTick();
+      } else if (m.type === 'hand') {
+        setHand(m.hand);
+      } else if (m.type === 'teacher_edit') {
+        onTeacherEdit(m.field, m.value);
       } else if (m.type === 'kicked') {
         closedByKick = true;
         localStorage.removeItem('lt_student');

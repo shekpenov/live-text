@@ -1,0 +1,90 @@
+/* Общий стиль: цвета (светлая и тёмная тема), иконки, кнопки, реакции, управление окнами */
+:root {
+  color-scheme: light;
+  --bg:#f4f6fb; --card:#ffffff; --text:#1c2333; --muted:#6b7385;
+  --line:#d5dae6; --line2:#e6e9f2; --soft:#f3f6fd; --soft2:#e8ecf6; --accent-soft:#e4ecff;
+  --accent:#3b6cf6; --accent-text:#2d4fc7; --danger:#d93b3b; --ok:#2fb36b; --warn:#e09a1a;
+  --warnbg:#fff0cf; --warnfg:#8a5a00; --okbg:#e3f6ec; --okfg:#17794a; --dangerbg:#fde4e4;
+  --hl:#ffe27a; --shadow:0 2px 12px rgba(20,30,60,.09); --overlay:rgba(15,20,35,.55);
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg:#0e121a; --card:#171d2a; --text:#e6eaf5; --muted:#9aa4ba;
+  --line:#2d364a; --line2:#252d3e; --soft:#1e2636; --soft2:#262f43; --accent-soft:#25335a;
+  --accent:#5b86ff; --accent-text:#8fb0ff; --danger:#f0605f; --ok:#3cc47c; --warn:#e8a935;
+  --warnbg:#3a2f14; --warnfg:#f2c978; --okbg:#143a2b; --okfg:#6fdca4; --dangerbg:#40212a;
+  --hl:#6a5714; --shadow:0 2px 14px rgba(0,0,0,.4); --overlay:rgba(0,0,0,.65);
+}
+
+/* иконки */
+.ic { width:1.15em; height:1.15em; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; flex:none; }
+button, .btn { font-family:inherit; }
+button:has(> .ic), .tb, .ibtn { display:inline-flex; align-items:center; justify-content:center; gap:7px; }
+button > span { min-width:0; }
+
+/* единые кнопки */
+.tb, .ibtn { border:0; border-radius:10px; font-size:14px; font-weight:600; cursor:pointer; background:var(--soft2); color:var(--text); white-space:nowrap; height:36px; padding:0 14px; transition:background .15s, filter .15s; }
+.ibtn { width:36px; padding:0; }
+.tb:hover, .ibtn:hover { filter:brightness(.96); }
+:root[data-theme="dark"] .tb:hover, :root[data-theme="dark"] .ibtn:hover { filter:brightness(1.15); }
+.tb.primary { background:var(--accent); color:#fff; }
+.tb.ok { background:var(--ok); color:#fff; }
+.tb.on { background:var(--warn); color:#fff; }
+.tb.ok.on { background:var(--soft2); color:var(--text); }
+.tb.danger { background:var(--danger); color:#fff; }
+.tb:disabled, .ibtn:disabled { opacity:.45; cursor:default; filter:none; }
+.tb .bdg, .ibtn .bdg { background:var(--accent); color:#fff; border-radius:10px; padding:0 6px; min-width:18px; height:18px; line-height:18px; font-size:11px; text-align:center; }
+.tb .bdg:empty, .ibtn .bdg:empty { display:none; }
+.ibtn { position:relative; }
+.ibtn .bdg { position:absolute; top:-5px; right:-5px; }
+.dotmark { position:absolute; top:6px; right:6px; width:9px; height:9px; border-radius:50%; background:var(--warn); }
+
+/* окна: управление */
+.pane-hidden { display:none !important; }
+.pane-drag { opacity:.5; }
+.pane-over { outline:2px dashed var(--accent); outline-offset:-2px; }
+.pc { display:inline-flex; align-items:center; gap:2px; margin-left:auto; flex:none; }
+.pc-grip { cursor:grab; color:var(--muted); display:inline-flex; padding:4px; }
+.pc-grip:active { cursor:grabbing; }
+.pc-b { border:0; background:none; color:var(--muted); width:26px; height:26px; border-radius:7px; padding:0; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; }
+.pc-b:hover:not(:disabled) { background:var(--soft2); color:var(--text); }
+.pc-b:disabled { opacity:.3; cursor:default; }
+.pane-restore { display:inline-flex; align-items:center; gap:6px; border:1.5px dashed var(--line); background:none; color:var(--muted); border-radius:9px; padding:4px 10px; font-size:13px; cursor:pointer; }
+.pane-restore:hover { color:var(--text); border-color:var(--accent); }
+.restorebar { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:8px; }
+.restorebar.hidden { display:none; }
+@media (max-width: 800px) {
+  .pc-grip { display:none; }
+  .pc-b .ic { transform:rotate(90deg); }
+}
+
+/* реакции */
+#rxLayer { position:fixed; left:14px; bottom:14px; width:220px; height:0; z-index:60; pointer-events:none; }
+.rx { position:absolute; bottom:0; display:flex; align-items:center; gap:8px; background:var(--card); color:var(--text); box-shadow:0 6px 22px rgba(20,30,60,.28); border-radius:30px; padding:6px 14px 6px 8px; animation:rxup 5s ease-out forwards; max-width:220px; }
+.rx-e { font-size:30px; line-height:1; }
+.rx-n { font-size:13px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+@keyframes rxup { 0% { transform:translateY(20px) scale(.6); opacity:0; } 8% { transform:translateY(0) scale(1); opacity:1; } 80% { opacity:1; } 100% { transform:translateY(-260px) scale(1); opacity:0; } }
+
+/* редакторы в тёмной теме */
+:root[data-theme="dark"] .CodeMirror { background:#131a27; color:#d7deee; }
+:root[data-theme="dark"] .CodeMirror-gutters { background:#101622; border-right:1px solid #252d3e; }
+:root[data-theme="dark"] .CodeMirror-linenumber { color:#5d6a86; }
+:root[data-theme="dark"] .CodeMirror-cursor { border-left-color:#fff; }
+:root[data-theme="dark"] .CodeMirror-selected { background:#2b3a5c; }
+:root[data-theme="dark"] .CodeMirror-focused .CodeMirror-selected { background:#34487a; }
+:root[data-theme="dark"] .CodeMirror-activeline-background { background:#1b2434; }
+:root[data-theme="dark"] .cm-s-default .cm-keyword { color:#c792ea; }
+:root[data-theme="dark"] .cm-s-default .cm-atom, :root[data-theme="dark"] .cm-s-default .cm-number { color:#f78c6c; }
+:root[data-theme="dark"] .cm-s-default .cm-def { color:#82aaff; }
+:root[data-theme="dark"] .cm-s-default .cm-variable-2 { color:#89ddff; }
+:root[data-theme="dark"] .cm-s-default .cm-variable-3, :root[data-theme="dark"] .cm-s-default .cm-type { color:#ffcb6b; }
+:root[data-theme="dark"] .cm-s-default .cm-comment { color:#6a7794; }
+:root[data-theme="dark"] .cm-s-default .cm-string, :root[data-theme="dark"] .cm-s-default .cm-string-2 { color:#c3e88d; }
+:root[data-theme="dark"] .cm-s-default .cm-meta { color:#89ddff; }
+:root[data-theme="dark"] .cm-s-default .cm-builtin { color:#82aaff; }
+:root[data-theme="dark"] .cm-s-default .cm-tag { color:#f07178; }
+:root[data-theme="dark"] .cm-s-default .cm-attribute, :root[data-theme="dark"] .cm-s-default .cm-property { color:#ffcb6b; }
+:root[data-theme="dark"] .cm-s-default .cm-qualifier { color:#ffcb6b; }
+:root[data-theme="dark"] .cm-s-default .cm-bracket { color:#9aa4ba; }
+:root[data-theme="dark"] .cm-s-default .cm-operator { color:#89ddff; }
+:root[data-theme="dark"] .CodeMirror-matchingbracket { color:#fff !important; background:#3a4a74; }
