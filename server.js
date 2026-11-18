@@ -12,7 +12,10 @@ const MAX_NAME = 40;
 const MAX_STUDENTS = 200;
 const ROOM_TTL_MS = 12 * 60 * 60 * 1000; // комната живёт 12 часов без активности
 const MAX_FILE = 30000;       // максимум символов в одной вкладке HTML/CSS/JS
-const MODES = ['text', 'python', 'html'];
+const MODES = ['text', 'python', 'html', 'sql'];
+const MAX_SQL_PART = 600000;    // максимум символов в скрипте одной таблицы
+const MAX_SQL_TOTAL = 2000000;  // максимум символов во всех таблицах комнаты
+const MAX_SQL_PARTS = 40;
 const MAX_TASK = 4000;                 // максимум символов в тексте задания
 const REACTIONS = ['👍', '👏', '❤️', '😂', '😮', '🤔', '🔥', '🎉'];
 // Реакции: можно слать свободно, но не больше REACTION_BURST за REACTION_WINDOW_MS; при превышении — пауза REACTION_COOLDOWN_MS
@@ -44,6 +47,7 @@ const wss = new WebSocketServer({ server });
 // rooms: code -> { code, teacherKey, mode, locked, students: Map, teachers: Set<ws>, touched }
 const rooms = new Map();
 let rxSeq = 0;
+let sqlSeq = 0;
 
 function newCode() {
   let code;
@@ -117,6 +121,12 @@ function pushBoard(room) {
   for (const s of room.students.values()) if (s.ws) send(s.ws, m);
 }
 
+function pushSql(room) {
+  const m = { type: 'sql', sql: room.sql };
+  toTeachers(room, m);
+  for (const st of room.students.values()) if (st.ws) send(st.ws, m);
+}
+
 function teacherReady(room) {
   return {
     type: 'teacher_ready',
@@ -128,6 +138,7 @@ function teacherReady(room) {
     board: boardOf(room),
     timer: timerMsg(room),
     task: room.task,
+    sql: room.sql,
   };
 }
 
@@ -157,6 +168,7 @@ wss.on('connection', (ws) => {
         touched: Date.now(),
         timer: newTimer(0),
         task: { text: '', ts: 0 },
+        sql: [], // таблицы комнаты: [{id, name, script}] — у каждого ученика из них собирается своя база SQLite
       };
       rooms.set(room.code, room);
       ws.role = 'teacher';
@@ -192,6 +204,22 @@ wss.on('connection', (ws) => {
         for (const s of room.students.values()) {
           if (s.ws) send(s.ws, { type: 'mode', mode });
         }
+      } else if (msg.type === 'sql_add') {
+        const name = String(msg.name || '').replace(/[^\p{L}\p{N}_ .\-]/gu, '').trim().slice(0, 60) || 'таблица';
+        const script = String(msg.script || '');
+        const total = room.sql.reduce((n, p) => n + p.script.length, 0);
+        if (!script.trim() || script.length > MAX_SQL_PART || total + script.length > MAX_SQL_TOTAL || room.sql.length >= MAX_SQL_PARTS) {
+          send(ws, { type: 'sql_error', reason: script.length > MAX_SQL_PART ? 'Скрипт слишком большой' : 'Достигнут лимит таблиц комнаты' });
+        } else {
+          room.sql.push({ id: ++sqlSeq + '-' + Date.now().toString(36), name, script });
+          pushSql(room);
+        }
+      } else if (msg.type === 'sql_remove') {
+        room.sql = room.sql.filter((p) => p.id !== msg.id);
+        pushSql(room);
+      } else if (msg.type === 'sql_clear') {
+        room.sql = [];
+        pushSql(room);
       } else if (msg.type === 'clear_all') {
         for (const [id, s] of room.students) {
           s.text = '';
@@ -331,7 +359,7 @@ wss.on('connection', (ws) => {
       ws.room = room;
       ws.studentId = id;
       room.touched = Date.now();
-      send(ws, { type: 'student_ready', id, text: s.text, files: s.files, output: s.output, mode: room.mode, locked: room.locked, hand: !!s.hand, board: boardOf(room), timer: timerMsg(room), task: room.task });
+      send(ws, { type: 'student_ready', id, text: s.text, files: s.files, output: s.output, mode: room.mode, locked: room.locked, hand: !!s.hand, board: boardOf(room), timer: timerMsg(room), task: room.task, sql: room.sql });
       toTeachers(room, { type: 'student', student: publicStudent(id, s) });
       if (s.doneAt) pushBoard(room);
       return;
