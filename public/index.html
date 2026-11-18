@@ -111,6 +111,35 @@
   #termIn { background:transparent; border:0; outline:0; color:#9fe3a1; font:inherit; width:70%; min-width:60px; padding:0; caret-color:#fff; }
   .pane { min-width:0; }
 
+  /* Режим SQL */
+  #sqlRunBtn { background:var(--ok); }
+  #sqlResetBtn, #sqlClrBtn { background:var(--soft2); color:var(--text); }
+  #sqlEditorHost { flex:1; min-height:0; border:1.5px solid var(--line); border-radius:10px; overflow:hidden; }
+  #sqlEditorHost .CodeMirror { height:100%; font-size:15px; font-family: ui-monospace, "Cascadia Code", Consolas, monospace; }
+  .schema { flex:1; min-height:0; overflow:auto; background:var(--card); border:1.5px solid var(--line); border-radius:10px; padding:8px; font-size:13px; }
+  .schema .tbl { margin-bottom:6px; }
+  .schema .tn { display:flex; align-items:center; gap:6px; width:100%; border:0; background:var(--soft2); color:var(--text); border-radius:7px; padding:6px 8px; font:600 13px/1.2 ui-monospace, Consolas, monospace; cursor:pointer; text-align:left; }
+  .schema .tn span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; min-width:0; }
+  .schema .tn em { font-style:normal; font-weight:400; color:var(--muted); font-size:11px; flex:none; }
+  .schema .cl { display:flex; gap:6px; padding:3px 8px 3px 14px; cursor:pointer; border-radius:5px; font:12px/1.3 ui-monospace, Consolas, monospace; }
+  .schema .cl:hover { background:var(--soft); }
+  .schema .cl b { font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
+  .schema .cl i { font-style:normal; color:var(--muted); margin-left:auto; flex:none; }
+  .schema .cl .pk { color:var(--warn); }
+  .schema .none { color:var(--muted); padding:6px; }
+  .schema .serr { color:var(--danger); background:var(--dangerbg); border-radius:7px; padding:6px 8px; margin-bottom:6px; font-size:12px; }
+  .sqlres { flex:1; min-height:0; overflow:auto; background:var(--card); border:1.5px solid var(--line); border-radius:10px; padding:10px; font-size:14px; }
+  .rt-wrap { overflow:auto; max-width:100%; border:1px solid var(--line); border-radius:8px; margin-bottom:6px; }
+  table.rt { border-collapse:collapse; font:13px/1.35 ui-monospace, "Cascadia Code", Consolas, monospace; min-width:100%; }
+  table.rt th { position:sticky; top:0; background:var(--soft2); text-align:left; padding:6px 10px; border-bottom:1.5px solid var(--line2); white-space:nowrap; }
+  table.rt td { padding:5px 10px; border-bottom:1px solid var(--line); white-space:nowrap; max-width:320px; overflow:hidden; text-overflow:ellipsis; }
+  table.rt tr:last-child td { border-bottom:0; }
+  table.rt td.num { text-align:right; }
+  table.rt td.nul { color:var(--muted); font-style:italic; }
+  .rt-note { color:var(--muted); font-size:12px; margin:0 0 12px; }
+  .rt-ok { background:var(--okbg); color:var(--okfg); border-radius:8px; padding:8px 10px; margin-bottom:8px; font-size:13px; }
+  .rt-err { background:var(--dangerbg); color:var(--danger); border-radius:8px; padding:8px 10px; margin-bottom:8px; font:13px/1.4 ui-monospace, Consolas, monospace; white-space:pre-wrap; }
+
   /* Режим HTML / CSS / JS */
   .tabs { display:flex; gap:4px; margin-bottom:0; }
   .tab { padding:8px 16px; font-size:14px; font-weight:600; border:0; border-radius:9px 9px 0 0; background:var(--soft2); color:var(--text); cursor:pointer; }
@@ -129,6 +158,7 @@
   #conOut .error { color:#ff8a8a; }
   #conOut .warn { color:#ffd479; }
 
+  @media (max-width: 480px) { #handBtn span { display:none; } .toolbar button { padding:9px 12px; font-size:14px; } }
   @media (max-width: 800px) {
     /* телефон: окна одно под другим */
     .split { grid-template-columns:minmax(0,1fr); grid-template-rows:repeat(var(--pn, 2), minmax(0, 1fr)); height:82vh; height:82dvh; }
@@ -213,6 +243,31 @@
       </div>
     </div>
 
+    <!-- Режим «SQL» -->
+    <div id="sqlPane" class="hidden">
+      <div class="toolbar">
+        <button id="sqlRunBtn" disabled><i data-i="play"></i><span>Выполнить</span></button>
+        <button id="sqlResetBtn"><i data-i="reset"></i><span>Сбросить базу</span></button>
+        <button id="sqlClrBtn"><i data-i="trash"></i><span>Очистить результат</span></button>
+        <span class="pystatus" id="sqlStatus"></span>
+      </div>
+      <div class="restorebar hidden" id="restSql"></div>
+      <div class="split" id="splitSql">
+        <div class="pane" id="paneSchema">
+          <div class="pt"><span>Таблицы</span></div>
+          <div class="schema" id="schemaBox"></div>
+        </div>
+        <div class="pane" id="paneSqlCode">
+          <div class="pt"><span>Запрос (Ctrl+Enter — выполнить)</span></div>
+          <div id="sqlEditorHost"></div>
+        </div>
+        <div class="pane" id="paneSqlOut">
+          <div class="pt"><span>Результат</span></div>
+          <div class="sqlres" id="sqlRes"></div>
+        </div>
+      </div>
+    </div>
+
     <!-- Режим «HTML» -->
     <div id="htmlPane" class="hidden">
       <div class="restorebar hidden" id="restHt"></div>
@@ -252,6 +307,7 @@
 
 <script src="/vendor/codemirror/codemirror.js"></script>
 <script src="/vendor/codemirror/python.js"></script>
+<script src="/vendor/codemirror/sql.js"></script>
 <script src="/vendor/codemirror/closebrackets.js"></script>
 <script src="/vendor/codemirror/matchbrackets.js"></script>
 <script src="/vendor/codemirror/xml.js"></script>
@@ -261,6 +317,7 @@
 <script src="/vendor/codemirror/xml-fold.js"></script>
 <script src="/vendor/codemirror/closetag.js"></script>
 <script src="/preview.js"></script>
+<script src="/sqlrun.js"></script>
 <script>
 (function () {
   const $ = (id) => document.getElementById(id);
@@ -281,7 +338,8 @@
   let mode = 'text';
   let locked = false;
   let silent = false;          // true — когда код меняем программно, без отправки учителю
-  let cm = null;               // редактор CodeMirror
+  let cm = null;               // редактор CodeMirror (Python)
+  let scm = null;              // редактор CodeMirror (SQL)
 
   // --- Python ---
   let pyWorker = null;
@@ -301,11 +359,13 @@
   }
 
   // ---------- код / текст ----------
-  function getCode() { return mode === 'python' && cm ? cm.getValue() : tcm.getValue(); }
+  const edOf = (m) => (m === 'python' && cm ? cm : m === 'sql' && scm ? scm : tcm);
+  function getCode() { return edOf(mode).getValue(); }
   function setCode(v) {
     silent = true;
     if (tcm.getValue() !== v) tcm.setValue(v);
     if (cm && cm.getValue() !== v) cm.setValue(v);
+    if (scm && scm.getValue() !== v) scm.setValue(v);
     silent = false;
   }
   function scheduleSend() {
@@ -325,6 +385,7 @@
     tcm.setOption('readOnly', locked ? 'nocursor' : false);
     $('textHost').classList.toggle('locked-ed', locked);
     if (cm) cm.setOption('readOnly', locked ? 'nocursor' : false);
+    if (scm) scm.setOption('readOnly', locked ? 'nocursor' : false);
     if (hcm) hcm.setOption('readOnly', locked ? 'nocursor' : false);
     $('lockMsg').style.display = locked ? 'block' : 'none';
     updateButtons();
@@ -332,16 +393,18 @@
 
   // ---------- режимы ----------
   function setMode(m) {
-    if (m !== 'python' && m !== 'html') m = 'text';
+    if (m !== 'python' && m !== 'html' && m !== 'sql') m = 'text';
     if (m === mode && $('work').dataset.init) return;
     $('work').dataset.init = '1';
     if (mode === 'python') {
       if (cm) { silent = true; tcm.setValue(cm.getValue()); silent = false; }
       if (pyState !== 'idle') stopCode(true);
     }
+    if (mode === 'sql' && scm) { silent = true; tcm.setValue(scm.getValue()); silent = false; }
     mode = m;
     $('textPane').classList.toggle('hidden', m !== 'text');
     $('pyPane').classList.toggle('hidden', m !== 'python');
+    $('sqlPane').classList.toggle('hidden', m !== 'sql');
     $('htmlPane').classList.toggle('hidden', m !== 'html');
     document.body.classList.toggle('wide', m !== 'text');
     if (m === 'html') {
@@ -355,8 +418,15 @@
       initPython();
       setTimeout(() => cm.refresh(), 0);
     }
+    if (m === 'sql') {
+      initSqlEditor();
+      silent = true; scm.setValue(tcm.getValue()); silent = false;
+      sqlEnsure();
+      setTimeout(() => scm.refresh(), 0);
+    }
     applyLock(locked);
     refreshStatus();
+    scheduleOutput();
   }
 
   function initEditor() {
@@ -412,7 +482,7 @@
     outTimer = setTimeout(() => { outTimer = null; sendOutput(); }, 200);
   }
   function sendOutput() {
-    if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: 'output', output: termText, state: pyState }));
+    if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: 'output', output: mode === 'sql' ? sqlText : termText, state: mode === 'sql' ? (sqlBusy ? 'running' : 'idle') : pyState }));
   }
 
   function showInput() {
@@ -501,6 +571,7 @@
   function updateButtons() {
     $('runBtn').disabled = !(pyReady && pyState === 'idle' && !locked);
     $('stopBtn').disabled = pyState === 'idle';
+    $('sqlRunBtn').disabled = !(sqlReady && !sqlBusy && !locked);
   }
 
   function refreshStatus() {
@@ -676,10 +747,9 @@
     value = String(value || '');
     let r;
     if (field === 'text') {
-      const act = mode === 'python' && cm ? cm : tcm;
-      const other = act === cm ? tcm : cm;
+      const act = edOf(mode);
       r = applyTeacher(act, value);
-      if (other && other.getValue() !== value) { silent = true; other.setValue(value); silent = false; }
+      [tcm, cm, scm].forEach((o) => { if (o && o !== act && o.getValue() !== value) { silent = true; o.setValue(value); silent = false; } });
       if (r) act.scrollIntoView(r.to, 80);
     } else if (hdocs && hdocs[field]) {
       r = applyTeacher(hdocs[field], value);
@@ -696,6 +766,74 @@
     }
     showTBanner(true);
   }
+
+  // ---------- SQL (SQLite в воркере) ----------
+  const sqlDb = LTSql.create();
+  let sqlParts = [], sqlBusy = false, sqlReady = false, sqlText = '';
+  function initSqlEditor() {
+    if (scm) return;
+    scm = CodeMirror($('sqlEditorHost'), {
+      value: tcm.getValue(), mode: 'text/x-sqlite', lineNumbers: true, indentUnit: 2, matchBrackets: true, autoCloseBrackets: true,
+      extraKeys: { 'Ctrl-Enter': () => runSql(), 'Cmd-Enter': () => runSql(), Tab: (c) => c.execCommand('insertSoftTab'), 'Shift-Tab': (c) => c.execCommand('indentLess') }
+    });
+    scm.on('change', () => { if (!silent) scheduleSend(); });
+    scm.setOption('readOnly', locked ? 'nocursor' : false);
+  }
+  function sqlStatus(t) { $('sqlStatus').textContent = t; }
+  function renderSchema(schema, errors) {
+    const box = $('schemaBox');
+    box.textContent = '';
+    (errors || []).forEach((e) => { const d = document.createElement('div'); d.className = 'serr'; d.textContent = 'Таблица «' + (e.name || '?') + '»: ' + e.error; box.appendChild(d); });
+    if (!schema.length) { const d = document.createElement('div'); d.className = 'none'; d.textContent = 'Таблиц пока нет. Создайте свою командой CREATE TABLE или дождитесь таблиц от учителя.'; box.appendChild(d); return; }
+    const put = (t) => { if (!scm || locked) return; scm.replaceSelection(t); scm.focus(); };
+    schema.forEach((t) => {
+      const wrap = document.createElement('div'); wrap.className = 'tbl';
+      const b = document.createElement('button'); b.className = 'tn'; b.title = 'Вставить имя в запрос';
+      const nm = document.createElement('span'); nm.textContent = t.name; b.appendChild(nm);
+      const em = document.createElement('em'); em.textContent = (t.type === 'view' ? 'вид' : '') + (t.count !== null && t.count !== undefined ? ' ' + t.count : ''); b.appendChild(em);
+      b.onclick = () => put(/^[A-Za-z_][A-Za-z0-9_]*$/.test(t.name) ? t.name : '"' + t.name + '"');
+      wrap.appendChild(b);
+      t.cols.forEach((c) => {
+        const r = document.createElement('div'); r.className = 'cl'; r.title = 'Вставить имя столбца';
+        const n = document.createElement('b'); n.textContent = c.name; if (c.pk) { n.className = 'pk'; n.title = 'первичный ключ'; }
+        const ty = document.createElement('i'); ty.textContent = (c.pk ? 'PK ' : '') + c.type;
+        r.appendChild(n); r.appendChild(ty);
+        r.onclick = () => put(/^[A-Za-z_][A-Za-z0-9_]*$/.test(c.name) ? c.name : '"' + c.name + '"');
+        wrap.appendChild(r);
+      });
+      box.appendChild(wrap);
+    });
+  }
+  sqlDb.onSchema = (sc) => renderSchema(sc, sqlDb.errors);
+  sqlDb.onError = (errs) => renderSchema(sqlDb.schema, errs);
+  function sqlEnsure() {
+    sqlReady = false; updateButtons(); sqlStatus('Загрузка SQLite…');
+    return sqlDb.sync(sqlParts).then(() => {
+      sqlReady = true; updateButtons();
+      sqlStatus(locked ? 'Ввод заблокирован учителем' : 'Готово');
+      if (!sqlDb.schema.length) renderSchema([], sqlDb.errors);
+    });
+  }
+  async function runSql() {
+    if (sqlBusy || !sqlReady || locked || !scm) return;
+    const q = scm.getValue();
+    if (!q.trim()) return;
+    sqlBusy = true; updateButtons(); sqlStatus('Выполняется…');
+    const res = await sqlDb.exec(q);
+    sqlBusy = false; updateButtons();
+    LTSql.render($('sqlRes'), res);
+    $('sqlRes').scrollTop = 0;
+    sqlText = LTSql.toText(res).slice(0, 12000);
+    sqlStatus(res.error ? 'Ошибка' : 'Готово');
+    scheduleOutput();
+  }
+  $('sqlRunBtn').onclick = runSql;
+  $('sqlClrBtn').onclick = () => { $('sqlRes').textContent = ''; sqlText = ''; scheduleOutput(); };
+  $('sqlResetBtn').onclick = () => {
+    if (!confirm('Вернуть базу к исходным таблицам? Ваши изменения в таблицах пропадут.')) return;
+    sqlReady = false; updateButtons(); sqlStatus('Сброс базы…');
+    sqlDb.reset().then(() => { sqlReady = true; updateButtons(); sqlStatus('База возвращена к исходным таблицам'); });
+  };
 
   // ---------- рука и «Я всё» ----------
   let handUp = false, amDone = false;
@@ -801,14 +939,19 @@
   // ---------- тема ----------
   function themeIcons() { ['themeBtn', 'themeBtn2'].forEach((id) => { $(id).innerHTML = LT.ic(LT.theme() === 'dark' ? 'sun' : 'moon'); }); }
   ['themeBtn', 'themeBtn2'].forEach((id) => $(id).addEventListener('click', () => LT.toggleTheme()));
-  window.addEventListener('lt-theme', () => { themeIcons(); if (cm) cm.refresh(); if (hcm) hcm.refresh(); tcm.refresh(); });
+  window.addEventListener('lt-theme', () => { themeIcons(); if (cm) cm.refresh(); if (scm) scm.refresh(); if (hcm) hcm.refresh(); tcm.refresh(); });
   themeIcons();
 
   // ---------- окна: перетаскивание, стрелки, скрытие ----------
-  function refreshEditors() { setTimeout(() => { try { if (cm) cm.refresh(); if (hcm) hcm.refresh(); } catch (e) { /* ещё не создан */ } }, 0); }
+  function refreshEditors() { setTimeout(() => { try { if (cm) cm.refresh(); if (scm) scm.refresh(); if (hcm) hcm.refresh(); } catch (e) { /* ещё не создан */ } }, 0); }
   LT.panes($('splitPy'), { key: 'stu-py', restore: $('restPy'), onChange: refreshEditors, panes: [
     { id: 'code', el: $('paneCode'), title: 'Код', slot: $('paneCode').querySelector('.pt') },
     { id: 'out', el: $('paneOut'), title: 'Вывод', slot: $('paneOut').querySelector('.pt') }] });
+  LT.panes($('splitSql'), { key: 'stu-sql', restore: $('restSql'), onChange: refreshEditors,
+    template: (vis) => vis.map((id) => (id === 'schema' ? '210px' : 'minmax(0, 1fr)')).join(' '), panes: [
+    { id: 'schema', el: $('paneSchema'), title: 'Таблицы', slot: $('paneSchema').querySelector('.pt') },
+    { id: 'code', el: $('paneSqlCode'), title: 'Запрос', slot: $('paneSqlCode').querySelector('.pt') },
+    { id: 'out', el: $('paneSqlOut'), title: 'Результат', slot: $('paneSqlOut').querySelector('.pt') }] });
   LT.panes($('splitHt'), { key: 'stu-html', restore: $('restHt'), onChange: refreshEditors, panes: [
     { id: 'ed', el: $('paneEd'), title: 'Код', slot: $('tabsRow') },
     { id: 'pv', el: $('panePv'), title: 'Страница', slot: $('pvHead') }] });
@@ -822,6 +965,7 @@
     ws.onmessage = (e) => {
       const m = JSON.parse(e.data);
       if (m.type === 'student_ready') {
+        sqlParts = m.sql || [];
         state.id = m.id;
         localStorage.setItem('lt_student', JSON.stringify(state));
         joined = true;
@@ -851,6 +995,9 @@
         sendOutput();
       } else if (m.type === 'mode') {
         setMode(m.mode);
+      } else if (m.type === 'sql') {
+        sqlParts = m.sql || [];
+        if (mode === 'sql') sqlEnsure().then(() => sqlStatus('Учитель обновил таблицы'));
       } else if (m.type === 'lock') {
         applyLock(m.locked);
       } else if (m.type === 'set_text') {

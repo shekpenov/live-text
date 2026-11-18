@@ -227,6 +227,35 @@
   .lpane.in-side .slist { display:flex; flex-direction:column; flex-wrap:nowrap; overflow:auto; max-height:min(300px, 34vh); padding:6px 8px 10px; gap:4px; }
   .lpane.in-side .sitem { min-width:0; }
 
+  /* таблицы SQL */
+  .sqlhint { color:var(--muted); font-size:13px; line-height:1.4; }
+  .sqlp { display:flex; align-items:center; gap:8px; padding:6px 8px; border-radius:8px; background:var(--soft); margin-bottom:5px; font-size:13px; }
+  .sqlp b { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:600; }
+  .sqlp.bad { background:var(--dangerbg); color:var(--danger); }
+  .sqlp .ibtn { width:26px; height:26px; flex:none; }
+  .sqlsch { margin:8px 0 6px; font:12px/1.45 ui-monospace, Consolas, monospace; color:var(--muted); }
+  .sqlsch div { margin-bottom:3px; word-break:break-word; }
+  .sqlsch b { color:var(--text); }
+  #sqlClearBtn { width:100%; justify-content:center; }
+  .dlgbg { position:fixed; inset:0; background:var(--overlay, rgba(15,20,35,.55)); z-index:40; display:flex; align-items:center; justify-content:center; padding:16px; }
+  .dlg { background:var(--card); color:var(--text); border-radius:14px; width:min(760px, 100%); max-height:92vh; overflow:auto; padding:16px 18px 14px; display:flex; flex-direction:column; gap:12px; box-shadow:var(--shadow); }
+  .dlg-h { display:flex; align-items:center; justify-content:space-between; font-size:18px; }
+  .dlg textarea { width:100%; resize:vertical; border:1.5px solid var(--line); border-radius:10px; padding:10px; background:var(--card); color:var(--text); font:13px/1.45 ui-monospace, Consolas, monospace; }
+  .dlg-row { display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end; }
+  .dlg-row label { display:flex; flex-direction:column; gap:4px; font-size:12px; color:var(--muted); }
+  .dlg-row label.chk { flex-direction:row; align-items:center; gap:6px; color:var(--text); font-size:13px; padding-bottom:7px; }
+  .dlg-row input[type=text], .dlg-row input:not([type]), .dlg-row select { border:1.5px solid var(--line); border-radius:8px; padding:7px 9px; background:var(--card); color:var(--text); font-size:14px; min-width:0; }
+  .dlg-prev { overflow:auto; max-height:240px; border:1px solid var(--line); border-radius:8px; }
+  .dlg-prev:empty { display:none; }
+  .dlg-prev .pi { padding:8px 10px; font-size:13px; color:var(--muted); border-bottom:1px solid var(--line); }
+  .dlg-prev table { border-collapse:collapse; font:12px/1.35 ui-monospace, Consolas, monospace; min-width:100%; }
+  .dlg-prev th { background:var(--soft2); text-align:left; padding:5px 9px; white-space:nowrap; position:sticky; top:0; }
+  .dlg-prev th small { font-weight:400; color:var(--muted); margin-left:5px; }
+  .dlg-prev td { padding:4px 9px; border-top:1px solid var(--line); white-space:nowrap; max-width:220px; overflow:hidden; text-overflow:ellipsis; }
+  .dlg-err { background:var(--dangerbg); color:var(--danger); border-radius:8px; padding:8px 10px; font-size:13px; white-space:pre-wrap; }
+  .dlg-f { display:flex; justify-content:flex-end; gap:8px; }
+  .tb.dsoft { color:var(--danger); }
+
   /* окно просмотра одного ученика */
   .modal { position:fixed; inset:0; background:rgba(15,20,35,.55); z-index:20; display:flex; align-items:center; justify-content:center; padding:18px; }
   .mbox { background:var(--card); border-radius:14px; width:min(1200px, 100%); height:min(86vh, 900px); display:flex; flex-direction:column; overflow:hidden; }
@@ -260,10 +289,10 @@
       <span class="rl">Адрес для учеников</span><span class="urlv" id="url"></span>
     </div>
     <div class="seg" id="modeSeg">
-      <button data-m="text">Текст</button><button data-m="python">Python</button><button data-m="html">HTML / CSS / JS</button>
+      <button data-m="text">Текст</button><button data-m="python">Python</button><button data-m="sql">SQL</button><button data-m="html">HTML / CSS / JS</button>
     </div>
     <select id="modeSel" class="hidden">
-      <option value="text">Текст</option><option value="python">Python</option><option value="html">HTML / CSS / JS</option>
+      <option value="text">Текст</option><option value="python">Python</option><option value="sql">SQL</option><option value="html">HTML / CSS / JS</option>
     </select>
     <div class="seg hidden" id="viewSeg">
       <button data-v="tiles" title="Плитки: все ученики сразу"><i data-i="grid"></i><span>Плитки</span></button>
@@ -344,6 +373,13 @@
       <h3><i data-i="trophy"></i>Кто закончил<span class="grow"></span><button class="tb sm" id="lbReset" title="Очистить таблицу, не трогая таймер">Очистить</button></h3>
       <div id="boardList"></div>
     </div>
+    <div class="card hidden" id="sqlCard">
+      <h3><i data-i="grid"></i>Таблицы SQL<span class="grow"></span><button class="tb sm" id="sqlAddBtn"><i data-i="plus"></i><span>Добавить</span></button></h3>
+      <div id="sqlParts"></div>
+      <div class="sqlhint" id="sqlHint">Таблиц пока нет. Добавьте CSV-файл или SQL-скрипт — ученики получат таблицы сразу.</div>
+      <div class="sqlsch" id="sqlSchema"></div>
+      <button class="tb sm dsoft hidden" id="sqlClearBtn"><i data-i="trash"></i><span>Удалить все таблицы</span></button>
+    </div>
     <div class="card" id="taskCard">
       <h3><i data-i="task"></i>Задание<span class="grow"></span><span class="tk-state hidden" id="tkState">отправлено</span></h3>
       <textarea id="tkText" rows="4" placeholder="Вставьте текст задания"></textarea>
@@ -376,7 +412,7 @@
         <pre class="mcode" id="mCode"></pre>
         <div class="mcm hidden" id="mEd"></div>
       </div>
-      <div class="mcol" id="mTermCol"><div class="mt prow"><span id="mTermT">Вывод программы</span><span class="grow"></span><button class="ibtn sm" id="mRunBtn" title="Запустить этот код у себя (ученик не увидит)"><i data-i="play"></i></button><button class="ibtn sm hidden" id="mBackBtn" title="Показать вывод ученика"><i data-i="undo"></i></button></div><pre class="mterm" id="mTerm"></pre></div>
+      <div class="mcol" id="mTermCol"><div class="mt prow"><span id="mTermT">Вывод программы</span><span class="grow"></span><button class="ibtn sm" id="mRunBtn" title="Запустить у себя на таблицах комнаты (ученик не увидит)"><i data-i="play"></i></button><button class="ibtn sm hidden" id="mBackBtn" title="Показать результат ученика"><i data-i="undo"></i></button></div><pre class="mterm" id="mTerm"></pre></div>
       <div class="mcol hidden" id="mPrevCol">
         <div class="mt prow"><span>Страница</span><span class="grow"></span><span class="note hidden" id="mNote">снимок с JS</span><button class="tb sm" id="mJsBtn"><i data-i="play"></i><span>Запустить JS</span></button></div>
         <iframe id="mPrev" class="mprev" sandbox="" title="Страница ученика"></iframe>
@@ -385,13 +421,38 @@
   </div>
 </div>
 
+<div class="dlgbg hidden" id="sqlDlg">
+  <div class="dlg" role="dialog" aria-label="Добавить таблицу">
+    <div class="dlg-h"><b>Добавить таблицу</b><button class="ibtn" id="dlgClose" title="Закрыть"><i data-i="x"></i></button></div>
+    <div class="seg" id="dlgTabs"><button data-t="csv" class="active">CSV-файл</button><button data-t="sql">SQL-скрипт</button></div>
+    <div id="dlgCsv">
+      <div class="dlg-row"><input type="file" id="csvFile" accept=".csv,.tsv,.txt,text/csv,text/plain"></div>
+      <textarea id="csvText" rows="5" spellcheck="false" placeholder="…или вставьте сюда содержимое CSV (первая строка — названия столбцов)"></textarea>
+      <div class="dlg-row">
+        <label>Имя таблицы<input id="csvName" value="table1"></label>
+        <label>Разделитель<select id="csvDelim"><option value="">авто</option><option value=",">запятая</option><option value=";">точка с запятой</option><option value="&#9;">табуляция</option><option value="|">вертикальная черта</option></select></label>
+        <label class="chk"><input type="checkbox" id="csvHeader" checked>первая строка — заголовки</label>
+      </div>
+      <div class="dlg-prev" id="csvPrev"></div>
+    </div>
+    <div id="dlgSql" class="hidden">
+      <div class="dlg-row"><label>Название<input id="sqlName" value="таблицы"></label><button class="tb sm" id="sqlSample">Вставить пример</button></div>
+      <textarea id="sqlScript" rows="12" spellcheck="false" placeholder="CREATE TABLE ...;&#10;INSERT INTO ... VALUES ...;"></textarea>
+    </div>
+    <div class="dlg-err hidden" id="dlgErr"></div>
+    <div class="dlg-f"><button class="tb" id="dlgCancel">Отмена</button><button class="tb primary" id="dlgOk">Добавить ученикам</button></div>
+  </div>
+</div>
+
 <script src="/vendor/codemirror/codemirror.js"></script>
 <script src="/vendor/codemirror/python.js"></script>
+<script src="/vendor/codemirror/sql.js"></script>
 <script src="/vendor/codemirror/xml.js"></script>
 <script src="/vendor/codemirror/javascript.js"></script>
 <script src="/vendor/codemirror/css.js"></script>
 <script src="/vendor/codemirror/htmlmixed.js"></script>
 <script src="/preview.js"></script>
+<script src="/sqlrun.js"></script>
 <script>
 (function () {
   const $ = (id) => document.getElementById(id);
@@ -585,11 +646,11 @@
     stopTileEdit();
     const s = students.get(id), body = t.querySelector('.tx');
     if (!s || !body) return;
-    const py = mode === 'python';
+    const py = isCode();
     const host = document.createElement('div'); host.className = 'tcm' + (py ? ' mono' : '');
     body.classList.add('hidden'); body.after(host);
     const cm = CodeMirror(host, {
-      value: s.text || '', lineWrapping: true, mode: py ? 'python' : null, indentUnit: 4, tabSize: 4,
+      value: s.text || '', lineWrapping: true, mode: cmMode(), indentUnit: 4, tabSize: 4,
       extraKeys: { Tab: (c) => c.execCommand('insertSoftTab'), 'Shift-Tab': (c) => c.execCommand('indentLess') }
     });
     cm.on('change', () => { if (!applying) queueEdit(id, 'text', cm.getValue()); });
@@ -643,8 +704,14 @@
         $('code').textContent = m.code;
         $('code2').textContent = m.code;
         $('modeSel').value = mode;
+        setSqlParts(m.sql);
         applyView();
+        sqlActivate();
         renderAll(); updateLock();
+      } else if (m.type === 'sql') {
+        setSqlParts(m.sql);
+      } else if (m.type === 'sql_error') {
+        alert(m.reason || 'Не удалось добавить таблицу');
       } else if (m.type === 'board') {
         board = m.board || [];
         renderBar();
@@ -682,6 +749,7 @@
         $('modeSel').value = mode;
         if (mode !== 'text' && tileW < 420) tileW = 420;
         applyView();
+        sqlActivate();
         renderAll();
         if (focusId) fillModal();
       } else if (m.type === 'error') {
@@ -718,7 +786,7 @@
   }
 
   function badgeInfo(s) {
-    if (mode !== 'python') return null;
+    if (!isCode()) return null;
     if (s.state === 'running') return { text: 'выполняется', cls: '' };
     if (s.state === 'input') return { text: 'ждёт ввода', cls: 'input' };
     return null;
@@ -745,11 +813,11 @@
       fillTile(t, s);
       return t;
     }
-    const body = document.createElement('div'); body.className = 'tx' + (mode === 'python' ? ' mono' : '');
+    const body = document.createElement('div'); body.className = 'tx' + (isCode() ? ' mono' : '');
     body.title = 'Клик — править текст ученика прямо здесь';
     body.onclick = () => startTileEdit(s.id, t);
     t.append(h, body);
-    if (mode === 'python') {
+    if (isCode()) {
       const tm = document.createElement('div'); tm.className = 'tm';
       t.append(tm);
     }
@@ -831,6 +899,8 @@
   let view = 'tiles';
   try { view = localStorage.getItem('lt_view') === 'list' ? 'list' : 'tiles'; } catch (e) { /* без хранилища */ }
   const isList = () => mode === 'html' || view === 'list';
+  const isCode = () => mode === 'python' || mode === 'sql'; // режимы «код + результат»
+  const cmMode = () => (mode === 'python' ? 'python' : mode === 'sql' ? 'text/x-sqlite' : null);
   function mountInline(on) {
     const m = $('modal'), h = $('hview');
     if (on) {
@@ -1140,13 +1210,14 @@
     const bi = badgeInfo(s);
     $('mBadge').classList.toggle('hidden', !bi);
     if (bi) { $('mBadge').textContent = bi.text; $('mBadge').className = 'badge ' + bi.cls; }
-    const py = mode === 'python';
+    const py = isCode();
     const ht = mode === 'html';
     $('mTermCol').classList.toggle('hidden', !py);
     $('mPrevCol').classList.toggle('hidden', !ht);
     $('mTabs').classList.toggle('hidden', !ht);
     $('mBody').classList.toggle('single', mode === 'text');
-    $('mCodeT').textContent = py ? 'Код' : (ht ? 'Код ученика' : 'Ответ');
+    $('mCodeT').textContent = mode === 'sql' ? 'Запрос' : py ? 'Код' : (ht ? 'Код ученика' : 'Ответ');
+    if (!tShown) $('mTermT').textContent = mode === 'sql' ? 'Результат запроса' : 'Вывод программы';
     $('mCode').style.fontFamily = (py || ht) ? '' : 'inherit';
     $('mCode').classList.toggle('hidden', !ht);
     $('mEd').classList.toggle('hidden', ht);
@@ -1158,7 +1229,7 @@
     } else {
       initMcm();
       $('mEd').classList.toggle('mono', py);
-      mcm.setOption('mode', py ? 'python' : null);
+      mcm.setOption('mode', cmMode());
       if (mEditing && recentEdit(s.id, 'text')) {
         clearTimeout(mResync);
         mResync = setTimeout(() => { if (focusId) fillModal(); }, 1600);
@@ -1207,7 +1278,7 @@
   $('dlBtn').onclick = () => {
     const parts = sortedStudents().map((s) => {
       let t = '===== ' + s.name + ' =====\n';
-      if (mode === 'python') t += '--- Код ---\n' + s.text + '\n--- Вывод ---\n' + (s.output || '') + '\n';
+      if (isCode()) t += (mode === 'sql' ? '--- Запрос ---\n' : '--- Код ---\n') + s.text + '\n--- ' + (mode === 'sql' ? 'Результат' : 'Вывод') + ' ---\n' + (s.output || '') + '\n';
       else if (mode === 'html') { const f = s.files || {}; t += '--- HTML ---\n' + (f.html || '') + '\n--- CSS ---\n' + (f.css || '') + '\n--- JS ---\n' + (f.js || '') + '\n'; }
       else t += s.text + '\n';
       return t;
@@ -1278,12 +1349,129 @@
   $('tkClear').onclick = () => { ws.send(JSON.stringify({ type: 'task_clear' })); $('tkText').value = ''; };
 
 
+  // ---------- SQL: таблицы комнаты, добавление CSV / скрипта, запуск у учителя ----------
+  const tdb = LTSql.create();      // база учителя: из тех же таблиц, что получают ученики
+  let sqlParts = [];
+  const SQL_SAMPLE = "CREATE TABLE students (\n  id INTEGER PRIMARY KEY,\n  name TEXT NOT NULL,\n  class TEXT,\n  age INTEGER\n);\nINSERT INTO students VALUES\n  (1, 'Аружан', '10А', 15),\n  (2, 'Бек', '10А', 16),\n  (3, 'Дана', '10Б', 16),\n  (4, 'Ерлан', '10Б', 17);\n\nCREATE TABLE grades (\n  student_id INTEGER,\n  subject TEXT,\n  score INTEGER\n);\nINSERT INTO grades VALUES\n  (1, 'Информатика', 5), (1, 'Математика', 4),\n  (2, 'Информатика', 4), (3, 'Информатика', 5),\n  (4, 'Математика', 3);\n";
+  function sqlActivate() {
+    $('sqlCard').classList.toggle('hidden', mode !== 'sql');
+    if (mode === 'sql') { renderSqlCard(); tdb.sync(sqlParts); }
+  }
+  function setSqlParts(list) { sqlParts = list || []; renderSqlCard(); if (mode === 'sql') tdb.sync(sqlParts); }
+  function renderSqlCard() {
+    const box = $('sqlParts'); box.textContent = '';
+    const bad = {}; (tdb.errors || []).forEach((e) => { bad[e.id] = e.error; });
+    sqlParts.forEach((p) => {
+      const r = document.createElement('div'); r.className = 'sqlp' + (bad[p.id] ? ' bad' : '');
+      const n = document.createElement('b'); n.textContent = p.name; n.title = bad[p.id] ? 'Ошибка в скрипте: ' + bad[p.id] : p.name;
+      const x = document.createElement('button'); x.className = 'ibtn'; x.title = 'Удалить эту таблицу у всех'; x.innerHTML = LT.ic('x');
+      x.onclick = () => { if (confirm('Удалить «' + p.name + '» у всех учеников? Их базы будут собраны заново.')) ws.send(JSON.stringify({ type: 'sql_remove', id: p.id })); };
+      r.append(n, x); box.appendChild(r);
+    });
+    $('sqlHint').classList.toggle('hidden', sqlParts.length > 0);
+    $('sqlClearBtn').classList.toggle('hidden', sqlParts.length < 2);
+  }
+  tdb.onSchema = (sc) => {
+    const box = $('sqlSchema'); box.textContent = '';
+    sc.forEach((t) => {
+      const d = document.createElement('div');
+      const b = document.createElement('b'); b.textContent = t.name;
+      d.append(b, ' (' + (t.count === null ? '' : LTSql.rowsWord(t.count) + '; ') + t.cols.map((c) => c.name).join(', ') + ')');
+      box.appendChild(d);
+    });
+    renderSqlCard();
+  };
+  tdb.onError = () => renderSqlCard();
+  $('sqlClearBtn').onclick = () => { if (confirm('Удалить все таблицы у всех учеников?')) ws.send(JSON.stringify({ type: 'sql_clear' })); };
+
+  // диалог
+  let dlgTab = 'csv', dlgPrevT = null, csvRes = null;
+  const dlgErr = (t) => { $('dlgErr').textContent = t || ''; $('dlgErr').classList.toggle('hidden', !t); };
+  function openDlg() {
+    dlgErr('');
+    $('csvText').value = ''; $('csvFile').value = ''; $('csvPrev').textContent = ''; csvRes = null;
+    $('csvName').value = 'table' + (sqlParts.length + 1);
+    $('sqlName').value = 'таблицы ' + (sqlParts.length + 1);
+    $('sqlDlg').classList.remove('hidden');
+  }
+  const closeDlg = () => $('sqlDlg').classList.add('hidden');
+  function dlgSwitch(t) {
+    dlgTab = t;
+    document.querySelectorAll('#dlgTabs button').forEach((b) => b.classList.toggle('active', b.dataset.t === t));
+    $('dlgCsv').classList.toggle('hidden', t !== 'csv');
+    $('dlgSql').classList.toggle('hidden', t !== 'sql');
+    dlgErr('');
+  }
+  $('sqlAddBtn').onclick = openDlg;
+  $('dlgClose').onclick = closeDlg; $('dlgCancel').onclick = closeDlg;
+  $('sqlDlg').addEventListener('mousedown', (e) => { if (e.target === $('sqlDlg')) closeDlg(); });
+  document.querySelectorAll('#dlgTabs button').forEach((b) => b.addEventListener('click', () => dlgSwitch(b.dataset.t)));
+  $('sqlSample').onclick = () => { $('sqlScript').value = SQL_SAMPLE; $('sqlName').value = 'ученики и оценки'; };
+
+  function csvPreview() {
+    clearTimeout(dlgPrevT);
+    dlgPrevT = setTimeout(() => {
+      const box = $('csvPrev'); box.textContent = ''; csvRes = null;
+      const text = $('csvText').value;
+      if (!text.trim()) return;
+      const r = LTSql.csvToSql(text, { name: $('csvName').value, delim: $('csvDelim').value || '', header: $('csvHeader').checked });
+      if (r.error) { dlgErr(r.error); return; }
+      dlgErr(''); csvRes = r;
+      const info = document.createElement('div'); info.className = 'pi';
+      info.textContent = LTSql.rowsWord(r.total) + ', столбцов: ' + r.columns.length + (r.total > 8 ? ' (показаны первые 8 строк)' : '');
+      const t = document.createElement('table'), hr = document.createElement('tr');
+      r.columns.forEach((c) => { const th = document.createElement('th'); th.textContent = c.name; const sm = document.createElement('small'); sm.textContent = c.type; th.appendChild(sm); hr.appendChild(th); });
+      const hd = document.createElement('thead'); hd.appendChild(hr); t.appendChild(hd);
+      const tb = document.createElement('tbody');
+      r.rows.forEach((row) => { const tr = document.createElement('tr'); r.columns.forEach((c, j) => { const td = document.createElement('td'); td.textContent = row[j] === undefined ? '' : row[j]; tr.appendChild(td); }); tb.appendChild(tr); });
+      t.appendChild(tb);
+      box.append(info, t);
+    }, 150);
+  }
+  ['csvText', 'csvName', 'csvDelim', 'csvHeader'].forEach((id) => $(id).addEventListener('input', csvPreview));
+  $('csvDelim').addEventListener('change', csvPreview); $('csvHeader').addEventListener('change', csvPreview);
+  $('csvFile').addEventListener('change', () => {
+    const f = $('csvFile').files[0]; if (!f) return;
+    if (f.size > 3 * 1024 * 1024) { dlgErr('Файл больше 3 МБ — разбейте его на части'); return; }
+    const rd = new FileReader();
+    rd.onload = () => {
+      let text;
+      try { text = new TextDecoder('utf-8', { fatal: true }).decode(rd.result); }
+      catch (e) { text = new TextDecoder('windows-1251').decode(rd.result); } // CSV из русского Excel
+      $('csvText').value = text;
+      $('csvName').value = f.name.replace(/\.[^.]+$/, '').replace(/[^\p{L}\p{N}_]+/gu, '_').replace(/^_+|_+$/g, '') || ('table' + (sqlParts.length + 1));
+      csvPreview();
+    };
+    rd.readAsArrayBuffer(f);
+  });
+  $('dlgOk').onclick = async () => {
+    dlgErr('');
+    if (dlgTab === 'csv') {
+      csvPreview(); await new Promise((r) => setTimeout(r, 200));
+      if (!csvRes) { dlgErr('Выберите CSV-файл или вставьте его содержимое'); return; }
+      const name = $('csvName').value.trim() || 'table1';
+      ws.send(JSON.stringify({ type: 'sql_add', name, script: LTSql.csvToSql($('csvText').value, { name, delim: $('csvDelim').value || '', header: $('csvHeader').checked }).script }));
+      closeDlg();
+    } else {
+      const script = $('sqlScript').value;
+      if (!script.trim()) { dlgErr('Вставьте SQL-скрипт'); return; }
+      $('dlgOk').disabled = true;
+      const t = LTSql.create();
+      await t.sync([{ id: 'check', name: 'check', script }]);
+      const errs = t.errors.slice(); t.stop();
+      $('dlgOk').disabled = false;
+      if (errs.length) { dlgErr('Ошибка в скрипте: ' + errs[0].error); return; }
+      ws.send(JSON.stringify({ type: 'sql_add', name: $('sqlName').value.trim() || 'таблицы', script }));
+      closeDlg();
+    }
+  };
+
   // ---------- запуск Python учителем (в браузере учителя, ученик не видит) ----------
   let tpy = null, tpyState = 'idle', tsab = null, tctrl = null, tdata = null, tShown = false, tOut = '';
   function tShow(on) {
     tShown = on;
     $('mBackBtn').classList.toggle('hidden', !on);
-    $('mTermT').textContent = on ? 'Запуск у учителя' : 'Вывод программы';
+    $('mTermT').textContent = on ? 'Запуск у учителя' : (mode === 'sql' ? 'Результат запроса' : 'Вывод программы');
   }
   function tAppend(t) { tOut += t; const el = $('mTerm'); el.textContent = tOut; el.scrollTop = el.scrollHeight; }
   function tIcon() { LT.btn($('mRunBtn'), tpyState === 'idle' ? 'play' : 'stop', ''); $('mRunBtn').title = tpyState === 'idle' ? 'Запустить этот код у себя (ученик не увидит)' : 'Остановить'; }
@@ -1316,7 +1504,16 @@
     };
     tpy.postMessage({ type: 'init', sab: tsab });
   }
-  $('mRunBtn').onclick = () => { if (tpyState !== 'idle') { tAppend('\n[Остановлено]\n'); tKill(); } else tStart(); };
+  async function tSqlRun() {
+    tKill(); tShow(true); tOut = ''; $('mTerm').textContent = 'Выполняется…';
+    const res = await tdb.exec(mcm ? mcm.getValue() : '');
+    if (!tShown) return;
+    tOut = LTSql.toText(res) + '\n'; $('mTerm').textContent = tOut;
+  }
+  $('mRunBtn').onclick = () => {
+    if (mode === 'sql') { tSqlRun(); return; }
+    if (tpyState !== 'idle') { tAppend('\n[Остановлено]\n'); tKill(); } else tStart();
+  };
   $('mBackBtn').onclick = () => { tKill(); tShow(false); const s = students.get(focusId); setScrollText($('mTerm'), (s && s.output) || ''); };
   LT.btn($('mRunBtn'), 'play', '');
 
